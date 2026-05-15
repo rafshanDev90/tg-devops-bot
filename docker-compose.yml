@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  bot:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.bot
+    container_name: tg-devops-bot
+    restart: unless-stopped
+    env_file:
+      - ./server/.env
+    # Optional: if you need to pass specific environment variables from the host
+    # environment:
+    #   - NODE_ENV=production

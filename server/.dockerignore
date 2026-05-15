@@ -1,0 +1,11 @@
+# Dependencies
+node_modules/
+
+# Environment and Secrets
+.env
+.env.local
+
+# Source Control and Metadata
+.git
+.gitignore
+
