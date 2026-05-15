@@ -1,5 +1,6 @@
 // index.js
 import { Telegraf } from 'telegraf';
+import http from 'http';
 
 import dotenv from "dotenv"
 dotenv.config()
@@ -12,6 +13,14 @@ bot.command('status', (ctx) => {
 });
 
 bot.launch().then(() => console.log('🤖 Bot is running...'));
+const server = http.createServer((req, res) => {
+    res.writeHead(200, { 'Content-Type': 'text/plain' });
+    res.end('Bot is alive\n');
+});
+
+server.listen(PORT, () => {
+    console.log(`🌐 Health check server listening on port ${PORT}`);
+});
 
 // Graceful stop
 process.once('SIGINT', () => bot.stop('SIGINT'));

@@ -1,0 +1,28 @@
+name: Monitor Bot Health
+
+on:
+  schedule:
+    - cron: '*/5 * * * *'  # Every 5 minutes
+  workflow_dispatch:
+
+jobs:
+  health-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check bot health
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USERNAME }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            if docker ps | grep -q bot; then
+              echo "✅ Bot is running"
+            else
+              echo "❌ Bot is down! Restarting..."
+              cd /var/www/amz/tg-devops-bot
+              docker-compose up -d
+              curl -X POST "https://api.telegram.org/bot${{ secrets.MONITOR_BOT_TOKEN }}/sendMessage" \
+                -d "chat_id=${{ secrets.YOUR_CHAT_ID }}" \
+                -d "text=⚠️ Bot was down! Restarted at $(date)"
+            fi

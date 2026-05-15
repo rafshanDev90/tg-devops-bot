@@ -9,6 +9,10 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 
+# Healthcheck: verify the Node process is alive (works without HTTP server)
+HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
+  CMD pgrep -f "node index.js" || exit 1
+
 # Run as non-root user for security
 USER node
 
