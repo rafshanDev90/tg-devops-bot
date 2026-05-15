@@ -31,7 +31,7 @@ export async function handleStart(ctx) {
 export async function handleStatus(ctx) {
   const mongoState = mongoose.connection.readyState === 1 ? 'Connected' : 'Disconnected';
   ctx.reply(
-    `System Status: Healthy\nBot: Running\nMongoDB: ${mongoState}\nUptime: ${process.uptime().toFixed(0)}s`
+    `System Status: Healthy\nBot: Running\nMongoDB: ${mongoState}\nUptime: ${process.uptime().toFixed(0)}s\nBuild: 2026-05-15-v2`
   );
 }
 
