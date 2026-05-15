@@ -23,7 +23,7 @@ jobs:
         script: |
           cd /var/www/amz/tg-devops-bot
           git pull origin main
-          docker-compose down
-          docker-compose up -d --build --no-deps --remove-orphans
+          docker compose down
+          docker compose up -d --build --no-deps --remove-orphans
           docker image prune -f
           echo "✅ Deployment completed at $(date)"
