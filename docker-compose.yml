@@ -13,8 +13,8 @@ services:
     cpus: '1.0'
 
     healthcheck:
-      # pgrep checks the node process is alive (no HTTP server in this bot)
-      test: [ "CMD", "pgrep", "-f", "node index.js" ]
+      # wget checks the HTTP health endpoint (confirmed bot is responding)
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/health"]
       interval: 30s
       timeout: 10s
       retries: 3
