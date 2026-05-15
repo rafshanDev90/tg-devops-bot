@@ -1,8 +1,8 @@
 services:
   bot:
     build:
-      context: ./server
-      dockerfile: Dockerfile.bot
+      context: .
+      dockerfile: server/Dockerfile.bot
     container_name: tg-devops-bot
     restart: unless-stopped
     env_file:
