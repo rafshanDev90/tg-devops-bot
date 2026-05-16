@@ -22,8 +22,19 @@ jobs:
         port: 22
         script: |
           cd /var/www/amz/tg-devops-bot
+          
+          # System Designer Upgrade: Clear local server changes before pulling
+          git reset --hard HEAD
+          git clean -fd
+          
+          # Pull fresh code safely
           git pull origin main
+          
+          # Rebuild with recreation flags to flush docker cache layers
           docker compose down
-          docker compose up -d --build --no-deps --remove-orphans
+          docker compose up -d --build --force-recreate --remove-orphans
+          
+          # Clean untagged images to prevent filling up your Contabo disk
           docker image prune -f
-          echo "✅ Deployment completed at $(date)"
+          
+          echo "✅ Pipeline Deployment completed at $(date)"
