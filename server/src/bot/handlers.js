@@ -60,19 +60,41 @@ export async function handleAsk(ctx) {
   try {
     const answer = await studyAgent.answerQuestion(question, student._id);
     
-    // Telegram's legacy Markdown parser frequently crashes on AI-generated text.
-    // Convert basic markdown to Telegram-supported HTML safely.
-    let htmlAnswer = answer
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>') // Bold
-      .replace(/(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)/g, '<i>$1</i>') // Italic
-      .replace(/```[a-zA-Z0-9]*\n([\s\S]*?)```/g, '<pre>$1</pre>') // Code blocks
-      .replace(/`(.*?)`/g, '<code>$1</code>') // Inline code
-      .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2">$1</a>'); // Links
-      
-    ctx.reply(htmlAnswer, { parse_mode: 'HTML' });
+    // Split answer into chunks if it exceeds Telegram's 4096 character limit
+    const chunks = [];
+    if (answer.length > 3900) {
+      let currentChunk = '';
+      const paragraphs = answer.split('\n\n');
+      for (const p of paragraphs) {
+        if (currentChunk.length + p.length > 3900) {
+          chunks.push(currentChunk);
+          currentChunk = p + '\n\n';
+        } else {
+          currentChunk += p + '\n\n';
+        }
+      }
+      if (currentChunk) chunks.push(currentChunk);
+    } else {
+      chunks.push(answer);
+    }
+
+    for (const chunk of chunks) {
+      let htmlChunk = chunk
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>') // Bold
+        .replace(/(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)/g, '<i>$1</i>') // Italic
+        .replace(/```[a-zA-Z0-9]*\n([\s\S]*?)```/g, '<pre>$1</pre>') // Code blocks
+        .replace(/`(.*?)`/g, '<code>$1</code>') // Inline code
+        .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2">$1</a>'); // Links
+        
+      await ctx.reply(htmlChunk, { parse_mode: 'HTML' }).catch(async (err) => {
+        // Fallback to plain text if HTML parsing fails (e.g., unclosed tags due to splitting)
+        logger.warn('AskCommand', 'HTML parse failed, falling back to plain text', { error: err.message });
+        await ctx.reply(chunk.substring(0, 4000));
+      });
+    }
   } catch (err) {
     logger.error('AskCommand', 'Failed to generate answer', { error: err.message });
     ctx.reply('Sorry, something went wrong. Please try again.');

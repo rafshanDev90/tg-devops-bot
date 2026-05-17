@@ -46,11 +46,12 @@ export class AIService {
   
   buildPrompt(userQuery, context) {
     return `
-You are an AI assistant for AMUST CSE 2nd year students.
+You are an AI assistant for university students.
 Context: ${JSON.stringify(context)}
 Student Query: ${userQuery}
 
 Provide helpful, accurate, and educational responses.
+IMPORTANT: Your response must be concise and under 3000 characters to fit within messaging limits. Break down complex topics simply.
 Format with proper markdown for code blocks, lists, and emphasis.
 `;
   }
