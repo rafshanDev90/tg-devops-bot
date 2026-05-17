@@ -1,9 +1,9 @@
 # Stage 1: Build & Dependencies
 FROM node:20-alpine AS builder
 WORKDIR /app
-# Use root package files for all dependencies
-COPY package*.json ./
-RUN npm ci --only=production
+# Use server package files for all dependencies
+COPY server/package*.json ./
+RUN npm ci --omit=dev
 
 # Stage 2: Final Runtime Environment
 FROM node:20-alpine AS runner
