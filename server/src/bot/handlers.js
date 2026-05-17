@@ -59,8 +59,22 @@ export async function handleAsk(ctx) {
   await ctx.reply('Thinking...');
   try {
     const answer = await studyAgent.answerQuestion(question, student._id);
-    ctx.reply(answer, { parse_mode: 'Markdown' });
+    
+    // Telegram's legacy Markdown parser frequently crashes on AI-generated text.
+    // Convert basic markdown to Telegram-supported HTML safely.
+    let htmlAnswer = answer
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>') // Bold
+      .replace(/(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)/g, '<i>$1</i>') // Italic
+      .replace(/```[a-zA-Z0-9]*\n([\s\S]*?)```/g, '<pre>$1</pre>') // Code blocks
+      .replace(/`(.*?)`/g, '<code>$1</code>') // Inline code
+      .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2">$1</a>'); // Links
+      
+    ctx.reply(htmlAnswer, { parse_mode: 'HTML' });
   } catch (err) {
+    logger.error('AskCommand', 'Failed to generate answer', { error: err.message });
     ctx.reply('Sorry, something went wrong. Please try again.');
   }
 }
