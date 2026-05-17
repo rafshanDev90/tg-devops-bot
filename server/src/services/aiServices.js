@@ -51,8 +51,11 @@ Context: ${JSON.stringify(context)}
 Student Query: ${userQuery}
 
 Provide helpful, accurate, and educational responses.
-IMPORTANT: Your response must be concise and under 3000 characters to fit within messaging limits. Break down complex topics simply.
-Format with proper markdown for code blocks, lists, and emphasis.
+IMPORTANT FORMATTING RULES:
+1. Do NOT write massive walls of text. Keep your response extremely concise (under 200 words).
+2. Use bullet points, emojis, and short paragraphs to make it highly readable on a mobile screen.
+3. Break down complex topics into bite-sized, easy-to-digest pieces.
+4. Format with proper markdown for code blocks, lists, and emphasis.
 `;
   }
 

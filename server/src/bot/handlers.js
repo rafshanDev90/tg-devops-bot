@@ -60,26 +60,30 @@ export async function handleAsk(ctx) {
   try {
     const answer = await studyAgent.answerQuestion(question, student._id);
     
-    // Split answer into chunks if it exceeds Telegram's 4096 character limit
+    // Split answer into chunks to avoid massive single cards and fit limits
+    const MAX_CHUNK_SIZE = 1200;
     const chunks = [];
-    if (answer.length > 3900) {
+    if (answer.length > MAX_CHUNK_SIZE) {
       let currentChunk = '';
       const paragraphs = answer.split('\n\n');
       for (const p of paragraphs) {
-        if (currentChunk.length + p.length > 3900) {
-          chunks.push(currentChunk);
+        if (currentChunk.length + p.length > MAX_CHUNK_SIZE && currentChunk.length > 0) {
+          chunks.push(currentChunk.trim());
           currentChunk = p + '\n\n';
         } else {
           currentChunk += p + '\n\n';
         }
       }
-      if (currentChunk) chunks.push(currentChunk);
+      if (currentChunk.trim()) chunks.push(currentChunk.trim());
     } else {
       chunks.push(answer);
     }
 
-    for (const chunk of chunks) {
-      let htmlChunk = chunk
+    for (let i = 0; i < chunks.length; i++) {
+      const chunk = chunks[i];
+      let prefix = i === 0 ? '💡 <b>Study Assistant</b>\n━━━━━━━━━━━━━━━\n\n' : '<i>...continued</i>\n\n';
+      
+      let htmlChunk = prefix + chunk
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;')
@@ -90,9 +94,10 @@ export async function handleAsk(ctx) {
         .replace(/\[(.*?)\]\((.*?)\)/g, '<a href="$2">$1</a>'); // Links
         
       await ctx.reply(htmlChunk, { parse_mode: 'HTML' }).catch(async (err) => {
-        // Fallback to plain text if HTML parsing fails (e.g., unclosed tags due to splitting)
+        // Fallback to plain text if HTML parsing fails
         logger.warn('AskCommand', 'HTML parse failed, falling back to plain text', { error: err.message });
-        await ctx.reply(chunk.substring(0, 4000));
+        const fallbackPrefix = i === 0 ? '💡 Study Assistant\n━━━━━━━━━━━━━━━\n\n' : '...continued\n\n';
+        await ctx.reply(fallbackPrefix + chunk.substring(0, 4000));
       });
     }
   } catch (err) {
