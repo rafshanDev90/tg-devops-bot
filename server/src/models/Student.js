@@ -6,12 +6,13 @@ const studentSchema = new mongoose.Schema({
     type: Number, 
     required: true, 
     unique: true,
-    index: true // High-cardinality index for rapid lookups
+    index: true
   },
   name: { type: String, required: true, trim: true },
   username: { type: String, trim: true },
   
-  // Structured academic data
+  role: { type: String, enum: ['student', 'admin', 'moderator'], default: 'student' },
+
   academic: {
     year: { type: Number, required: true, min: 1, max: 5 },
     branch: { type: String, required: true, uppercase: true, index: true },
@@ -19,16 +20,42 @@ const studentSchema = new mongoose.Schema({
     status: { type: String, enum: ['ACTIVE', 'SUSPENDED', 'GRADUATED'], default: 'ACTIVE' }
   },
 
-  // Metadata
   metadata: {
     isActive: { type: Boolean, default: true },
-    lastActiveAt: { type: Date }
+    lastActiveAt: { type: Date },
+    joinedChannels: { type: Number, default: 0 },
+    totalCommands: { type: Number, default: 0 },
+    commandHistory: [{
+      command: String,
+      usedAt: { type: Date, default: Date.now }
+    }]
+  },
+
+  preferences: {
+    language: { type: String, enum: ['en', 'bn'], default: 'en' },
+    dailyReminderEnabled: { type: Boolean, default: true },
+    dailyReminderTime: { type: String, default: '06:00' },
+    notificationsEnabled: { type: Boolean, default: true }
   }
 }, { 
-  timestamps: true // Automatically handles createdAt and updatedAt
+  timestamps: true
 });
 
-// Compound index for academic filtering (e.g., pulling all CS year 3 students)
 studentSchema.index({ 'academic.branch': 1, 'academic.year': 1 });
+studentSchema.index({ role: 1 });
+studentSchema.index({ 'metadata.isActive': 1 });
+
+studentSchema.methods.trackCommand = async function(command) {
+  this.metadata.totalCommands = (this.metadata.totalCommands || 0) + 1;
+  this.metadata.lastActiveAt = new Date();
+  if (!this.metadata.commandHistory) {
+    this.metadata.commandHistory = [];
+  }
+  this.metadata.commandHistory.push({ command, usedAt: new Date() });
+  if (this.metadata.commandHistory.length > 50) {
+    this.metadata.commandHistory = this.metadata.commandHistory.slice(-50);
+  }
+  await this.save();
+};
 
 export const Student = mongoose.model('Student', studentSchema);

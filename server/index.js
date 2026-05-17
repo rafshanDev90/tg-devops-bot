@@ -15,7 +15,17 @@ import {
   handleRoutine,
   handleClearRoutine,
   initRoutine,
+  handleProfile,
+  handleEditProfile,
+  handleAdmin,
+  handleAdminUsers,
+  handleAdminBroadcast,
+  handleAdminStats,
+  handleAdminSuspend,
+  handleAdminActivate,
+  handleMakeAdmin,
 } from './src/bot/handlers.js';
+import { trackActivity } from './src/middleware/admin.js';
 import { AIService } from './src/services/aiServices.js';
 import { RoutineAgent } from './src/agents/routineAgent.js';
 import { RoutineService } from './src/services/routineService.js';
@@ -55,6 +65,8 @@ const dailyJob = new DailyRoutineJob(bot, routineService);
 initRoutine(routineService, dailyJob);
 dailyJob.start();
 
+bot.use(trackActivity);
+
 bot.start(handleStart);
 bot.command('status', handleStatus);
 bot.command('ask', handleAsk);
@@ -64,6 +76,15 @@ bot.command('upload_routine', handleUploadRoutine);
 bot.command('today', handleToday);
 bot.command('routine', handleRoutine);
 bot.command('clear_routine', handleClearRoutine);
+bot.command('profile', handleProfile);
+bot.command('edit_profile', handleEditProfile);
+bot.command('admin', handleAdmin);
+bot.command('admin_users', handleAdminUsers);
+bot.command('admin_broadcast', handleAdminBroadcast);
+bot.command('admin_stats', handleAdminStats);
+bot.command('admin_suspend', handleAdminSuspend);
+bot.command('admin_activate', handleAdminActivate);
+bot.command('admin_make_admin', handleMakeAdmin);
 
 // Register handleUploadRoutine for photo and document as well, to support captions
 bot.on('photo', (ctx) => {
@@ -88,9 +109,15 @@ bot.telegram.setMyCommands([
   { command: 'upload_routine', description: 'Upload routine (image/text)' },
   { command: 'ask', description: 'Ask a study question' },
   { command: 'assignments', description: 'View assignments' },
+  { command: 'profile', description: 'View your profile' },
+  { command: 'edit_profile', description: 'Edit your profile' },
   { command: 'status', description: 'Check system status' },
   { command: 'clear_routine', description: 'Clear your routine' },
   { command: 'help', description: 'Show help message' },
+  { command: 'admin', description: 'Admin dashboard' },
+  { command: 'admin_users', description: 'List/search users' },
+  { command: 'admin_broadcast', description: 'Broadcast message to all' },
+  { command: 'admin_stats', description: 'Detailed analytics' },
 ]);
 
 bot.launch().then(() => logger.info('Bot', 'Running'))

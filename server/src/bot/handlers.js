@@ -6,6 +6,7 @@ import { AIService } from '../services/aiServices.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { SupabaseError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
+import { requireAdmin } from '../middleware/admin.js';
 
 const aiService = new AIService();
 const studyAgent = new StudyAgent(aiService);
@@ -38,7 +39,8 @@ export async function handleStart(ctx) {
   await getOrCreateStudent(ctx);
   ctx.reply(
     'Welcome to the DevOps Study Bot!\n\n' +
-    'Use /help to see available commands.'
+    'Use /help to see available commands.\n' +
+    'Use /profile to view your profile.'
   );
 }
 
@@ -292,6 +294,8 @@ export function handleHelp(ctx) {
     '📚 <b>Available Commands:</b>\n\n' +
     '<b>General:</b>\n' +
     '/start - Register and start\n' +
+    '/profile - View your profile\n' +
+    '/edit_profile - Update your info\n' +
     '/status - System health\n' +
     '/help - Show this message\n\n' +
     '<b>Study:</b>\n' +
@@ -313,6 +317,367 @@ export async function handleError(err, ctx) {
     ? '⚠️ Something went wrong. Please try again in a moment.'
     : err.message || 'An unexpected error occurred. Please try again.';
   ctx.reply(message).catch(() => {});
+}
+
+export const handleProfile = asyncHandler(async (ctx) => {
+  const student = await Student.findOne({ telegramId: ctx.from.id });
+  if (!student) {
+    return ctx.reply('Please use /start to register first.');
+  }
+
+  const daysSinceJoin = Math.floor((Date.now() - student.createdAt.getTime()) / (1000 * 60 * 60 * 24));
+  const lastActive = student.metadata.lastActiveAt
+    ? timeAgo(student.metadata.lastActiveAt)
+    : 'Never';
+
+  const statusEmoji = {
+    ACTIVE: '🟢',
+    SUSPENDED: '🔴',
+    GRADUATED: '🎓'
+  };
+
+  ctx.reply(
+    `👤 <b>Your Profile</b>\n` +
+    `━━━━━━━━━━━━━━━━━━\n\n` +
+    `📛 <b>Name:</b> ${escapeHtml(student.name)}\n` +
+    `🆔 <b>Telegram ID:</b> ${student.telegramId}\n` +
+    `${student.username ? `🔗 <b>Username:</b> @${escapeHtml(student.username)}\n` : ''}` +
+    `\n🎓 <b>Academic Info:</b>\n` +
+    `   Year: ${student.academic.year}\n` +
+    `   Branch: ${student.academic.branch}\n` +
+    `   ${student.academic.rollNumber ? `Roll: ${escapeHtml(student.academic.rollNumber)}\n` : ''}` +
+    `   Status: ${statusEmoji[student.academic.status] || '⚪'} ${student.academic.status}\n` +
+    `\n📊 <b>Stats:</b>\n` +
+    `   Commands used: ${student.metadata.totalCommands || 0}\n` +
+    `   Member since: ${daysSinceJoin} days ago\n` +
+    `   Last active: ${lastActive}\n` +
+    `\n⚙️ <b>Preferences:</b>\n` +
+    `   Language: ${student.preferences?.language === 'bn' ? 'বাংলা' : 'English'}\n` +
+    `   Daily reminder: ${student.preferences?.dailyReminderEnabled ? '✅ ON' : '❌ OFF'}\n` +
+    `   Notifications: ${student.preferences?.notificationsEnabled ? '✅ ON' : '❌ OFF'}`,
+    { parse_mode: 'HTML' }
+  );
+});
+
+export const handleEditProfile = asyncHandler(async (ctx) => {
+  const student = await Student.findOne({ telegramId: ctx.from.id });
+  if (!student) {
+    return ctx.reply('Please use /start to register first.');
+  }
+
+  const args = ctx.message.text.replace('/edit_profile', '').trim().split(' ');
+  if (args.length < 2) {
+    return ctx.reply(
+      `✏️ <b>Edit Profile</b>\n\n` +
+      `Usage:\n` +
+      `/edit_profile name &lt;Your Name&gt;\n` +
+      `/edit_profile year &lt;1-5&gt;\n` +
+      `/edit_profile branch &lt;CSE/EEE/ME/CE&gt;\n` +
+      `/edit_profile roll &lt;Roll Number&gt;\n` +
+      `/edit_profile language &lt;en/bn&gt;\n` +
+      `/edit_profile reminder &lt;on/off&gt;\n\n` +
+      `Current: ${escapeHtml(student.name)} | Year ${student.academic.year} | ${student.academic.branch}`,
+      { parse_mode: 'HTML' }
+    );
+  }
+
+  const field = args[0].toLowerCase();
+  const value = args.slice(1).join(' ');
+
+  switch (field) {
+    case 'name':
+      if (value.length < 2) return ctx.reply('❌ Name must be at least 2 characters.');
+      student.name = value;
+      break;
+    case 'year':
+      const year = parseInt(value);
+      if (year < 1 || year > 5) return ctx.reply('❌ Year must be between 1 and 5.');
+      student.academic.year = year;
+      break;
+    case 'branch':
+      student.academic.branch = value.toUpperCase();
+      break;
+    case 'roll':
+      student.academic.rollNumber = value;
+      break;
+    case 'language':
+      if (!['en', 'bn'].includes(value.toLowerCase())) {
+        return ctx.reply('❌ Language must be "en" or "bn".');
+      }
+      student.preferences.language = value.toLowerCase();
+      break;
+    case 'reminder':
+      student.preferences.dailyReminderEnabled = value.toLowerCase() === 'on';
+      break;
+    default:
+      return ctx.reply('❌ Unknown field. Use /edit_profile to see options.');
+  }
+
+  await student.save();
+  ctx.reply(`✅ Profile updated! ${field} set to "${escapeHtml(value)}".`);
+});
+
+export const handleAdmin = asyncHandler(async (ctx, next) => {
+  await requireAdmin(ctx, async () => {
+    const totalUsers = await Student.countDocuments();
+    const activeUsers = await Student.countDocuments({ 'metadata.isActive': true });
+    const suspendedUsers = await Student.countDocuments({ 'academic.status': 'SUSPENDED' });
+    const graduatedUsers = await Student.countDocuments({ 'academic.status': 'GRADUATED' });
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const activeToday = await Student.countDocuments({ 'metadata.lastActiveAt': { $gte: today } });
+
+    const weekAgo = new Date();
+    weekAgo.setDate(weekAgo.getDate() - 7);
+    const activeThisWeek = await Student.countDocuments({ 'metadata.lastActiveAt': { $gte: weekAgo } });
+
+    const branchStats = await Student.aggregate([
+      { $group: { _id: '$academic.branch', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]);
+
+    const yearStats = await Student.aggregate([
+      { $group: { _id: '$academic.year', count: { $sum: 1 } } },
+      { $sort: { _id: 1 } }
+    ]);
+
+    const branchText = branchStats.map(b => `   ${b._id}: ${b.count}`).join('\n');
+    const yearText = yearStats.map(y => `   Year ${y._id}: ${y.count}`).join('\n');
+
+    ctx.reply(
+      `🛡️ <b>Admin Dashboard</b>\n` +
+      `━━━━━━━━━━━━━━━━━━\n\n` +
+      `👥 <b>Users:</b>\n` +
+      `   Total: ${totalUsers}\n` +
+      `   Active: ${activeUsers}\n` +
+      `   Suspended: ${suspendedUsers}\n` +
+      `   Graduated: ${graduatedUsers}\n` +
+      `\n📈 <b>Activity:</b>\n` +
+      `   Today: ${activeToday}\n` +
+      `   This week: ${activeThisWeek}\n` +
+      `\n🎓 <b>By Branch:</b>\n${branchText}\n` +
+      `\n📚 <b>By Year:</b>\n${yearText}\n\n` +
+      `<b>Admin Commands:</b>\n` +
+      `/admin_users - List/search users\n` +
+      `/admin_broadcast - Send message to all\n` +
+      `/admin_stats - Detailed analytics\n` +
+      `/admin_suspend &lt;id&gt; - Suspend user\n` +
+      `/admin_activate &lt;id&gt; - Activate user\n` +
+      `/admin_make_admin &lt;id&gt; - Grant admin role`,
+      { parse_mode: 'HTML' }
+    );
+    return next();
+  });
+});
+
+export const handleAdminUsers = asyncHandler(async (ctx, next) => {
+  await requireAdmin(ctx, async () => {
+    const args = ctx.message.text.replace('/admin_users', '').trim();
+
+    let query = {};
+    if (args) {
+      const searchRegex = new RegExp(args, 'i');
+      query = {
+        $or: [
+          { name: searchRegex },
+          { username: searchRegex },
+          { telegramId: parseInt(args) || -1 },
+          { 'academic.rollNumber': searchRegex }
+        ]
+      };
+    }
+
+    const users = await Student.find(query)
+      .sort({ 'metadata.lastActiveAt': -1 })
+      .limit(30)
+      .lean();
+
+    if (!users.length) {
+      return ctx.reply('🔍 No users found.');
+    }
+
+    const lines = users.map((u, i) => {
+      const status = u.academic.status === 'ACTIVE' ? '🟢' : u.academic.status === 'SUSPENDED' ? '🔴' : '🎓';
+      const role = u.role === 'admin' ? '👑' : '';
+      const lastActive = u.metadata.lastActiveAt ? timeAgoShort(u.metadata.lastActiveAt) : 'Never';
+      return `${i + 1}. ${status}${role} ID: ${u.telegramId} | ${escapeHtml(u.name)} | ${u.academic.branch} Y${u.academic.year} | ${lastActive}`;
+    });
+
+    ctx.reply(
+      `👥 <b>Users (${users.length})</b>\n` +
+      `━━━━━━━━━━━━━━━━━━\n\n` +
+      lines.join('\n') +
+      (users.length === 30 ? '\n\n<i>Showing first 30 results</i>' : ''),
+      { parse_mode: 'HTML' }
+    );
+    return next();
+  });
+});
+
+export const handleAdminBroadcast = asyncHandler(async (ctx, next) => {
+  await requireAdmin(ctx, async () => {
+    const message = ctx.message.text.replace('/admin_broadcast', '').trim();
+    if (!message) {
+      return ctx.reply(
+        `📢 <b>Broadcast Message</b>\n\n` +
+        `Usage: /admin_broadcast &lt;message&gt;\n\n` +
+        `This will send the message to all active users.\n` +
+        `Supports HTML formatting.`,
+        { parse_mode: 'HTML' }
+      );
+    }
+
+    const users = await Student.find({ 'metadata.isActive': true }).select('telegramId').lean();
+    let successCount = 0;
+    let failCount = 0;
+
+    await ctx.reply(`📢 Broadcasting to ${users.length} users...`);
+
+    for (const user of users) {
+      try {
+        await ctx.telegram.sendMessage(user.telegramId, message, { parse_mode: 'HTML' });
+        successCount++;
+      } catch (err) {
+        failCount++;
+        logger.error('Broadcast', 'Failed to send message', { telegramId: user.telegramId, error: err.message });
+      }
+    }
+
+    ctx.reply(
+      `✅ Broadcast complete!\n\n` +
+      `📤 Sent: ${successCount}\n` +
+      `❌ Failed: ${failCount}\n` +
+      `👥 Total: ${users.length}`
+    );
+    return next();
+  });
+});
+
+export const handleAdminStats = asyncHandler(async (ctx, next) => {
+  await requireAdmin(ctx, async () => {
+    const totalCommands = await Student.aggregate([
+      { $group: { _id: null, total: { $sum: '$metadata.totalCommands' } } }
+    ]);
+
+    const topUsers = await Student.find()
+      .sort({ 'metadata.totalCommands': -1 })
+      .limit(10)
+      .select('name metadata.totalCommands metadata.lastActiveAt')
+      .lean();
+
+    const newUsersToday = await Student.countDocuments({ createdAt: { $gte: new Date(new Date().setHours(0, 0, 0, 0)) } });
+    const newUsersThisWeek = await Student.countDocuments({ createdAt: { $gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) } });
+    const newUsersThisMonth = await Student.countDocuments({ createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } });
+
+    const topUsersText = topUsers
+      .filter(u => u.metadata.totalCommands > 0)
+      .map((u, i) => `${i + 1}. ${escapeHtml(u.name)} - ${u.metadata.totalCommands} commands`)
+      .join('\n') || 'No data yet';
+
+    ctx.reply(
+      `📊 <b>Detailed Analytics</b>\n` +
+      `━━━━━━━━━━━━━━━━━━\n\n` +
+      `📈 <b>Growth:</b>\n` +
+      `   Today: +${newUsersToday}\n` +
+      `   This week: +${newUsersThisWeek}\n` +
+      `   This month: +${newUsersThisMonth}\n` +
+      `\n💬 <b>Engagement:</b>\n` +
+      `   Total commands: ${totalCommands[0]?.total || 0}\n` +
+      `\n🏆 <b>Top 10 Users:</b>\n${topUsersText}`,
+      { parse_mode: 'HTML' }
+    );
+    return next();
+  });
+});
+
+export const handleAdminSuspend = asyncHandler(async (ctx, next) => {
+  await requireAdmin(ctx, async () => {
+    const telegramId = parseInt(ctx.message.text.replace('/admin_suspend', '').trim());
+    if (!telegramId) {
+      return ctx.reply('❌ Usage: /admin_suspend <telegram_id>');
+    }
+
+    const user = await Student.findOne({ telegramId });
+    if (!user) {
+      return ctx.reply('❌ User not found.');
+    }
+
+    user.academic.status = 'SUSPENDED';
+    user.metadata.isActive = false;
+    await user.save();
+
+    ctx.reply(`🔴 User ${escapeHtml(user.name)} (ID: ${telegramId}) has been suspended.`);
+    return next();
+  });
+});
+
+export const handleAdminActivate = asyncHandler(async (ctx, next) => {
+  await requireAdmin(ctx, async () => {
+    const telegramId = parseInt(ctx.message.text.replace('/admin_activate', '').trim());
+    if (!telegramId) {
+      return ctx.reply('❌ Usage: /admin_activate <telegram_id>');
+    }
+
+    const user = await Student.findOne({ telegramId });
+    if (!user) {
+      return ctx.reply('❌ User not found.');
+    }
+
+    user.academic.status = 'ACTIVE';
+    user.metadata.isActive = true;
+    await user.save();
+
+    ctx.reply(`🟢 User ${escapeHtml(user.name)} (ID: ${telegramId}) has been activated.`);
+    return next();
+  });
+});
+
+export const handleMakeAdmin = asyncHandler(async (ctx, next) => {
+  await requireAdmin(ctx, async () => {
+    const telegramId = parseInt(ctx.message.text.replace('/admin_make_admin', '').trim());
+    if (!telegramId) {
+      return ctx.reply('❌ Usage: /admin_make_admin <telegram_id>');
+    }
+
+    const user = await Student.findOne({ telegramId });
+    if (!user) {
+      return ctx.reply('❌ User not found.');
+    }
+
+    user.role = 'admin';
+    await user.save();
+
+    ctx.reply(`👑 User ${escapeHtml(user.name)} (ID: ${telegramId}) is now an admin.`);
+    return next();
+  });
+});
+
+function escapeHtml(text) {
+  if (!text) return '';
+  return String(text)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function timeAgo(date) {
+  const seconds = Math.floor((new Date() - date) / 1000);
+  if (seconds < 60) return 'Just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)} days ago`;
+  return date.toLocaleDateString();
+}
+
+function timeAgoShort(date) {
+  const seconds = Math.floor((new Date() - date) / 1000);
+  if (seconds < 60) return 'Just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+  return date.toLocaleDateString();
 }
 
 function _getCurrentDayBDT() {
