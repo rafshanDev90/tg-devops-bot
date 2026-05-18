@@ -1,4 +1,6 @@
 import cron from 'node-cron';
+import mongoose from 'mongoose';
+import { Student } from '../models/Student.js';
 import { logger } from '../utils/logger.js';
 import { safeExecute } from '../utils/asyncHandler.js';
 
@@ -41,35 +43,56 @@ export class DailyRoutineJob {
     const dayName = this._getCurrentDayBDT();
     logger.info('DailyRoutineJob', `Sending notifications for ${dayName}`);
 
-    const allClasses = await safeExecute(async () => {
-      return this.service.getAllUsersForDay(dayName);
+    const students = await safeExecute(async () => {
+      return Student.find({
+        'metadata.isActive': true,
+        'metadata.onboardingCompleted': true,
+        'preferences.dailyReminderEnabled': true,
+      }).lean();
     }, []);
 
-    if (!allClasses.length) {
-      logger.info('DailyRoutineJob', `No classes found for ${dayName}`);
+    if (!students.length) {
+      logger.info('DailyRoutineJob', 'No active students with reminders enabled');
       return;
     }
 
-    const grouped = this._groupByTelegramId(allClasses);
+    let sentCount = 0;
+    let failCount = 0;
+    let noClassCount = 0;
 
-    for (const [telegramId, classes] of grouped) {
-      await safeExecute(async () => {
-        const message = this._buildMessage(dayName, classes);
-        await this.bot.telegram.sendMessage(telegramId, message, { parse_mode: 'HTML' });
-        logger.debug('DailyRoutineJob', `Sent to ${telegramId} (${classes.length} classes)`);
-      });
+    for (const student of students) {
+      try {
+        const classes = await this.service.getTodayClasses(
+          student.telegramId,
+          student.academic.university,
+          student.academic.department,
+          student.academic.batch
+        );
+
+        if (!classes.length) {
+          noClassCount++;
+          continue;
+        }
+
+        const message = this._buildMessage(dayName, classes, student.academic.department, student.academic.batch);
+        await this.bot.telegram.sendMessage(student.telegramId, message, { parse_mode: 'HTML' });
+        sentCount++;
+      } catch (err) {
+        failCount++;
+        logger.error('DailyRoutineJob', `Failed to send to ${student.telegramId}`, { error: err.message });
+      }
     }
 
-    logger.info('DailyRoutineJob', `Notifications sent to ${grouped.size} users`);
+    logger.info('DailyRoutineJob', `Notifications complete — Sent: ${sentCount}, No classes: ${noClassCount}, Failed: ${failCount}`);
   }
 
-  _buildMessage(dayName, classes) {
+  _buildMessage(dayName, classes, department, batch) {
     const emojis = {
       '08': '🕗', '09': '🕘', '10': '🕙', '11': '🕚', '12': '🕛',
       '13': '🕐', '14': '🕑', '15': '🕒', '16': '🕓', '17': '🕔',
     };
 
-    const header = `<b>📅 Today's Schedule — ${dayName}</b>\n\n`;
+    const header = `<b>📅 ${department} Batch ${batch} — ${dayName}</b>\n\n`;
 
     const lines = classes.map((c) => {
       const hour = c.start_time.slice(0, 2);
@@ -103,16 +126,6 @@ export class DailyRoutineJob {
       }
     }
     return null;
-  }
-
-  _groupByTelegramId(classes) {
-    const map = new Map();
-    for (const c of classes) {
-      const id = c.telegram_id;
-      if (!map.has(id)) map.set(id, []);
-      map.get(id).push(c);
-    }
-    return map;
   }
 
   _getCurrentDayBDT() {

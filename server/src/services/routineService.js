@@ -6,13 +6,14 @@ import { safeExecute } from '../utils/asyncHandler.js';
 
 const CACHE_TTL = 300;
 const CACHE_PREFIX = 'routine:';
+const SHARED_PREFIX = 'routine:shared:';
 
 export class RoutineService {
   constructor(routineAgent) {
     this.agent = routineAgent;
   }
 
-  async uploadRoutine(telegramId, text, fileType = 'text') {
+  async uploadRoutine(telegramId, studentId, text, fileType = 'text', university = null, department = null, batch = null) {
     if (!supabase.isReady) {
       throw new SupabaseError('Supabase is not configured');
     }
@@ -24,6 +25,10 @@ export class RoutineService {
 
     const rows = parsed.map((entry) => ({
       telegram_id: telegramId,
+      student_id: studentId,
+      university: university,
+      department: department,
+      batch: batch,
       ...entry,
     }));
 
@@ -32,13 +37,17 @@ export class RoutineService {
     await safeExecute(async () => {
       await supabase.insert('routine_uploads', [{
         telegram_id: telegramId,
+        student_id: studentId,
         file_type: fileType,
         status: 'parsed',
       }]);
     });
 
     cache.invalidatePrefix(`${CACHE_PREFIX}${telegramId}`);
-    logger.info('RoutineService', `Uploaded ${inserted.length} classes for user ${telegramId}`);
+    if (department && batch) {
+      cache.invalidatePrefix(`${SHARED_PREFIX}${university}_${department}_${batch}`);
+    }
+    logger.info('RoutineService', `Uploaded ${inserted.length} classes for user ${telegramId}`, { university, department, batch });
 
     return {
       success: true,
@@ -47,7 +56,7 @@ export class RoutineService {
     };
   }
 
-  async getTodayClasses(telegramId) {
+  async getTodayClasses(telegramId, university = null, department = null, batch = null) {
     if (!supabase.isReady) return [];
 
     const cacheKey = `${CACHE_PREFIX}${telegramId}:today`;
@@ -59,6 +68,31 @@ export class RoutineService {
     const classes = await safeExecute(async () => {
       return supabase.query('routines', {
         filters: { telegram_id: telegramId, day_of_week: dayName },
+        order: { column: 'start_time', ascending: true },
+      });
+    }, []);
+
+    cache.set(cacheKey, classes, CACHE_TTL);
+    return classes;
+  }
+
+  async getSharedTodayClasses(university, department, batch) {
+    if (!supabase.isReady) return [];
+
+    const cacheKey = `${SHARED_PREFIX}${university}_${department}_${batch}:today`;
+    const cached = cache.get(cacheKey);
+    if (cached) return cached;
+
+    const dayName = this._getCurrentDayBDT();
+
+    const classes = await safeExecute(async () => {
+      return supabase.query('routines', {
+        filters: {
+          university: university,
+          department: department,
+          batch: batch,
+          day_of_week: dayName,
+        },
         order: { column: 'start_time', ascending: true },
       });
     }, []);
@@ -92,6 +126,35 @@ export class RoutineService {
     return sorted;
   }
 
+  async getSharedFullRoutine(university, department, batch) {
+    if (!supabase.isReady) return [];
+
+    const cacheKey = `${SHARED_PREFIX}${university}_${department}_${batch}:full`;
+    const cached = cache.get(cacheKey);
+    if (cached) return cached;
+
+    const dayOrder = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+    const classes = await safeExecute(async () => {
+      return supabase.query('routines', {
+        filters: {
+          university: university,
+          department: department,
+          batch: batch,
+        },
+        order: { column: 'start_time', ascending: true },
+      });
+    }, []);
+
+    const sorted = classes?.sort((a, b) => {
+      const dayDiff = dayOrder.indexOf(a.day_of_week) - dayOrder.indexOf(b.day_of_week);
+      return dayDiff !== 0 ? dayDiff : a.start_time.localeCompare(b.start_time);
+    });
+
+    cache.set(cacheKey, sorted, CACHE_TTL);
+    return sorted;
+  }
+
   async clearRoutine(telegramId) {
     if (!supabase.isReady) {
       throw new SupabaseError('Supabase is not configured');
@@ -108,6 +171,17 @@ export class RoutineService {
     return safeExecute(async () => {
       return supabase.query('routines', {
         filters: { day_of_week: dayOfWeek },
+        order: { column: 'start_time', ascending: true },
+      });
+    }, []);
+  }
+
+  async getRoutinesByDeptBatch(university, department, batch) {
+    if (!supabase.isReady) return [];
+
+    return safeExecute(async () => {
+      return supabase.query('routines', {
+        filters: { university, department, batch },
         order: { column: 'start_time', ascending: true },
       });
     }, []);

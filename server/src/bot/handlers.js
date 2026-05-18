@@ -3,6 +3,7 @@ import { Student } from '../models/Student.js';
 import { AssignmentStatus } from '../models/AssignmentStatus.js';
 import { StudyAgent } from '../agents/studyAgent.js';
 import { AIService } from '../services/aiServices.js';
+import { StudentService } from '../services/studentService.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { SupabaseError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
@@ -10,6 +11,7 @@ import { requireAdmin } from '../middleware/admin.js';
 
 const aiService = new AIService();
 const studyAgent = new StudyAgent(aiService);
+const studentService = new StudentService();
 
 let routineService = null;
 let dailyRoutineJob = null;
@@ -21,14 +23,9 @@ export function initRoutine(service, job) {
 
 async function getOrCreateStudent(ctx) {
   const from = ctx.from;
-  let student = await Student.findOne({ telegramId: from.id });
-  if (!student) {
-    student = await Student.create({
-      telegramId: from.id,
-      name: from.first_name || 'Unknown',
-      username: from.username,
-      academic: { year: 2, branch: 'CSE' },
-    });
+  const student = await Student.findOne({ telegramId: from.id });
+  if (!student || !student.metadata.onboardingCompleted) {
+    return null;
   }
   student.metadata.lastActiveAt = new Date();
   await student.save();
@@ -36,11 +33,17 @@ async function getOrCreateStudent(ctx) {
 }
 
 export async function handleStart(ctx) {
-  await getOrCreateStudent(ctx);
-  ctx.reply(
-    'Welcome to the DevOps Study Bot!\n\n' +
-    'Use /help to see available commands.\n' +
-    'Use /profile to view your profile.'
+  const existingStudent = await Student.findOne({ telegramId: ctx.from.id });
+  if (existingStudent && existingStudent.metadata.onboardingCompleted) {
+    return ctx.reply(
+      `👋 Welcome back, ${escapeHtml(existingStudent.name)}!\n\n` +
+      `Use /help to see available commands.`
+    );
+  }
+  return ctx.reply(
+    `🎓 Welcome to AMUST Hub!\n\n` +
+    `Use /setup_profile to set up your account first.\n` +
+    `Use /help to see available commands.`
   );
 }
 
@@ -125,6 +128,10 @@ export async function handleAssignments(ctx) {
 
 export async function handleUploadRoutine(ctx) {
   const telegramId = ctx.from.id;
+  const student = await getOrCreateStudent(ctx);
+  if (!student) {
+    return ctx.reply('⚠️ Please set up your profile first using /setup_profile.');
+  }
   let text = '';
   let fileType = 'text';
 
@@ -196,7 +203,7 @@ Example: [{"day_of_week":"Monday","start_time":"08:00","end_time":"09:00","subje
   await ctx.reply('🤖 AI is parsing your routine...');
 
   try {
-    const result = await routineService.uploadRoutine(telegramId, text, fileType);
+    const result = await routineService.uploadRoutine(telegramId, student._id, text, fileType, student.academic.university, student.academic.department, student.academic.batch);
 
     const daySummary = {};
     for (const c of result.classes) {
@@ -292,8 +299,9 @@ export const handleClearRoutine = asyncHandler(async (ctx) => {
 export function handleHelp(ctx) {
   ctx.reply(
     '📚 <b>Available Commands:</b>\n\n' +
-    '<b>General:</b>\n' +
-    '/start - Register and start\n' +
+    '<b>Getting Started:</b>\n' +
+    '/setup_profile - Set up your profile (required)\n' +
+    '/start - Welcome back\n' +
     '/profile - View your profile\n' +
     '/edit_profile - Update your info\n' +
     '/status - System health\n' +
@@ -322,7 +330,11 @@ export async function handleError(err, ctx) {
 export const handleProfile = asyncHandler(async (ctx) => {
   const student = await Student.findOne({ telegramId: ctx.from.id });
   if (!student) {
-    return ctx.reply('Please use /start to register first.');
+    return ctx.reply('Please use /setup_profile to register first.');
+  }
+
+  if (!student.metadata.onboardingCompleted) {
+    return ctx.reply('⚠️ Your profile setup is incomplete. Use /setup_profile to complete it.');
   }
 
   const daysSinceJoin = Math.floor((Date.now() - student.createdAt.getTime()) / (1000 * 60 * 60 * 24));
@@ -343,9 +355,10 @@ export const handleProfile = asyncHandler(async (ctx) => {
     `🆔 <b>Telegram ID:</b> ${student.telegramId}\n` +
     `${student.username ? `🔗 <b>Username:</b> @${escapeHtml(student.username)}\n` : ''}` +
     `\n🎓 <b>Academic Info:</b>\n` +
-    `   Year: ${student.academic.year}\n` +
-    `   Branch: ${student.academic.branch}\n` +
-    `   ${student.academic.rollNumber ? `Roll: ${escapeHtml(student.academic.rollNumber)}\n` : ''}` +
+    `   University: ${student.academic.university}\n` +
+    `   Department: ${student.academic.department}\n` +
+    `   Batch: ${student.academic.batch}\n` +
+    `   University ID: ${escapeHtml(student.academic.universityId || 'Not set')}\n` +
     `   Status: ${statusEmoji[student.academic.status] || '⚪'} ${student.academic.status}\n` +
     `\n📊 <b>Stats:</b>\n` +
     `   Commands used: ${student.metadata.totalCommands || 0}\n` +
@@ -362,7 +375,11 @@ export const handleProfile = asyncHandler(async (ctx) => {
 export const handleEditProfile = asyncHandler(async (ctx) => {
   const student = await Student.findOne({ telegramId: ctx.from.id });
   if (!student) {
-    return ctx.reply('Please use /start to register first.');
+    return ctx.reply('Please use /setup_profile to register first.');
+  }
+
+  if (!student.metadata.onboardingCompleted) {
+    return ctx.reply('⚠️ Complete your profile setup first. Use /setup_profile.');
   }
 
   const args = ctx.message.text.replace('/edit_profile', '').trim().split(' ');
@@ -371,12 +388,13 @@ export const handleEditProfile = asyncHandler(async (ctx) => {
       `✏️ <b>Edit Profile</b>\n\n` +
       `Usage:\n` +
       `/edit_profile name &lt;Your Name&gt;\n` +
-      `/edit_profile year &lt;1-5&gt;\n` +
-      `/edit_profile branch &lt;CSE/EEE/ME/CE&gt;\n` +
-      `/edit_profile roll &lt;Roll Number&gt;\n` +
+      `/edit_profile university &lt;AMUST/BUET/DU/NSU&gt;\n` +
+      `/edit_profile department &lt;CSE/EEE/ME/CE&gt;\n` +
+      `/edit_profile batch &lt;Batch Number&gt;\n` +
+      `/edit_profile id &lt;University ID&gt;\n` +
       `/edit_profile language &lt;en/bn&gt;\n` +
       `/edit_profile reminder &lt;on/off&gt;\n\n` +
-      `Current: ${escapeHtml(student.name)} | Year ${student.academic.year} | ${student.academic.branch}`,
+      `Current: ${escapeHtml(student.name)} | ${student.academic.university} | ${student.academic.department} | Batch ${student.academic.batch}`,
       { parse_mode: 'HTML' }
     );
   }
@@ -389,16 +407,21 @@ export const handleEditProfile = asyncHandler(async (ctx) => {
       if (value.length < 2) return ctx.reply('❌ Name must be at least 2 characters.');
       student.name = value;
       break;
-    case 'year':
-      const year = parseInt(value);
-      if (year < 1 || year > 5) return ctx.reply('❌ Year must be between 1 and 5.');
-      student.academic.year = year;
+    case 'university':
+      student.academic.university = value.toUpperCase();
       break;
-    case 'branch':
-      student.academic.branch = value.toUpperCase();
+    case 'department':
+      student.academic.department = value.toUpperCase();
       break;
-    case 'roll':
-      student.academic.rollNumber = value;
+    case 'batch':
+      const batch = parseInt(value);
+      if (isNaN(batch) || batch < 1 || batch > 100) return ctx.reply('❌ Enter a valid batch number.');
+      student.academic.batch = batch;
+      break;
+    case 'id':
+      const existingWithId = await Student.findOne({ 'academic.universityId': value, telegramId: { $ne: student.telegramId } });
+      if (existingWithId) return ctx.reply('❌ This university ID is already registered.');
+      student.academic.universityId = value;
       break;
     case 'language':
       if (!['en', 'bn'].includes(value.toLowerCase())) {
@@ -414,6 +437,7 @@ export const handleEditProfile = asyncHandler(async (ctx) => {
   }
 
   await student.save();
+  await studentService.syncStudent(student);
   ctx.reply(`✅ Profile updated! ${field} set to "${escapeHtml(value)}".`);
 });
 
@@ -432,18 +456,24 @@ export const handleAdmin = asyncHandler(async (ctx, next) => {
     weekAgo.setDate(weekAgo.getDate() - 7);
     const activeThisWeek = await Student.countDocuments({ 'metadata.lastActiveAt': { $gte: weekAgo } });
 
-    const branchStats = await Student.aggregate([
-      { $group: { _id: '$academic.branch', count: { $sum: 1 } } },
+    const uniStats = await Student.aggregate([
+      { $group: { _id: '$academic.university', count: { $sum: 1 } } },
       { $sort: { count: -1 } }
     ]);
 
-    const yearStats = await Student.aggregate([
-      { $group: { _id: '$academic.year', count: { $sum: 1 } } },
+    const deptStats = await Student.aggregate([
+      { $group: { _id: '$academic.department', count: { $sum: 1 } } },
+      { $sort: { count: -1 } }
+    ]);
+
+    const batchStats = await Student.aggregate([
+      { $group: { _id: '$academic.batch', count: { $sum: 1 } } },
       { $sort: { _id: 1 } }
     ]);
 
-    const branchText = branchStats.map(b => `   ${b._id}: ${b.count}`).join('\n');
-    const yearText = yearStats.map(y => `   Year ${y._id}: ${y.count}`).join('\n');
+    const uniText = uniStats.map(u => `   ${u._id}: ${u.count}`).join('\n');
+    const deptText = deptStats.map(b => `   ${b._id}: ${b.count}`).join('\n');
+    const batchText = batchStats.map(y => `   Batch ${y._id}: ${y.count}`).join('\n');
 
     ctx.reply(
       `🛡️ <b>Admin Dashboard</b>\n` +
@@ -456,8 +486,9 @@ export const handleAdmin = asyncHandler(async (ctx, next) => {
       `\n📈 <b>Activity:</b>\n` +
       `   Today: ${activeToday}\n` +
       `   This week: ${activeThisWeek}\n` +
-      `\n🎓 <b>By Branch:</b>\n${branchText}\n` +
-      `\n📚 <b>By Year:</b>\n${yearText}\n\n` +
+      `\n🏛️ <b>By University:</b>\n${uniText}\n` +
+      `\n🎓 <b>By Department:</b>\n${deptText}\n` +
+      `\n📚 <b>By Batch:</b>\n${batchText}\n\n` +
       `<b>Admin Commands:</b>\n` +
       `/admin_users - List/search users\n` +
       `/admin_broadcast - Send message to all\n` +
@@ -501,7 +532,7 @@ export const handleAdminUsers = asyncHandler(async (ctx, next) => {
       const status = u.academic.status === 'ACTIVE' ? '🟢' : u.academic.status === 'SUSPENDED' ? '🔴' : '🎓';
       const role = u.role === 'admin' ? '👑' : '';
       const lastActive = u.metadata.lastActiveAt ? timeAgoShort(u.metadata.lastActiveAt) : 'Never';
-      return `${i + 1}. ${status}${role} ID: ${u.telegramId} | ${escapeHtml(u.name)} | ${u.academic.branch} Y${u.academic.year} | ${lastActive}`;
+      return `${i + 1}. ${status}${role} ID: ${u.telegramId} | ${escapeHtml(u.name)} | ${u.academic.university} | ${u.academic.department} B${u.academic.batch} | ${lastActive}`;
     });
 
     ctx.reply(

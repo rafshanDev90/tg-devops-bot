@@ -25,7 +25,15 @@ import {
   handleAdminActivate,
   handleMakeAdmin,
 } from './src/bot/handlers.js';
+import {
+  handleStart as handleOnboardingStart,
+  handleOnboardingMessage,
+  handleDepartmentCallback,
+  handleUniversityCallback,
+  handleSetupProfile,
+} from './src/bot/onboardingHandlers.js';
 import { trackActivity } from './src/middleware/admin.js';
+import { onboardingManager } from './src/services/onboardingManager.js';
 import { AIService } from './src/services/aiServices.js';
 import { RoutineAgent } from './src/agents/routineAgent.js';
 import { RoutineService } from './src/services/routineService.js';
@@ -67,7 +75,8 @@ dailyJob.start();
 
 bot.use(trackActivity);
 
-bot.start(handleStart);
+bot.start(handleOnboardingStart);
+bot.command('setup_profile', handleSetupProfile);
 bot.command('status', handleStatus);
 bot.command('ask', handleAsk);
 bot.command('assignments', handleAssignments);
@@ -86,6 +95,23 @@ bot.command('admin_suspend', handleAdminSuspend);
 bot.command('admin_activate', handleAdminActivate);
 bot.command('admin_make_admin', handleMakeAdmin);
 
+bot.on('callback_query', (ctx) => {
+  const data = ctx.callbackQuery.data;
+  if (data.startsWith('uni_')) {
+    return handleUniversityCallback(ctx);
+  }
+  if (data.startsWith('dept_')) {
+    return handleDepartmentCallback(ctx);
+  }
+  return ctx.answerCbQuery();
+});
+
+bot.on('text', async (ctx) => {
+  if (ctx.message.text && !ctx.message.text.startsWith('/')) {
+    await handleOnboardingMessage(ctx);
+  }
+});
+
 // Register handleUploadRoutine for photo and document as well, to support captions
 bot.on('photo', (ctx) => {
   if (ctx.message.caption && ctx.message.caption.startsWith('/upload_routine')) {
@@ -103,6 +129,7 @@ bot.catch(handleError);
 
 // Set bot commands for auto-suggestion
 bot.telegram.setMyCommands([
+  { command: 'setup_profile', description: 'Set up your profile (required)' },
   { command: 'start', description: 'Start the bot' },
   { command: 'today', description: 'Show today\'s classes' },
   { command: 'routine', description: 'Show weekly routine' },
@@ -146,6 +173,7 @@ process.once('SIGINT', () => {
   bot.stop('SIGINT');
   mongoose.disconnect();
   dailyJob.stop();
+  onboardingManager.stop();
   server.close();
   process.exit(0);
 });
@@ -154,6 +182,7 @@ process.once('SIGTERM', () => {
   bot.stop('SIGTERM');
   mongoose.disconnect();
   dailyJob.stop();
+  onboardingManager.stop();
   server.close();
   process.exit(0);
 });

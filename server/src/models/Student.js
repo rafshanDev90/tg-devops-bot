@@ -14,9 +14,10 @@ const studentSchema = new mongoose.Schema({
   role: { type: String, enum: ['student', 'admin', 'moderator'], default: 'student' },
 
   academic: {
-    year: { type: Number, required: true, min: 1, max: 5 },
-    branch: { type: String, required: true, uppercase: true, index: true },
-    rollNumber: { type: String, unique: true, sparse: true },
+    university: { type: String, required: true, default: 'AMUST', uppercase: true, index: true },
+    department: { type: String, required: true, uppercase: true, index: true },
+    batch: { type: Number, required: true, index: true },
+    universityId: { type: String, unique: true, sparse: true },
     status: { type: String, enum: ['ACTIVE', 'SUSPENDED', 'GRADUATED'], default: 'ACTIVE' }
   },
 
@@ -28,7 +29,8 @@ const studentSchema = new mongoose.Schema({
     commandHistory: [{
       command: String,
       usedAt: { type: Date, default: Date.now }
-    }]
+    }],
+    onboardingCompleted: { type: Boolean, default: false }
   },
 
   preferences: {
@@ -41,7 +43,7 @@ const studentSchema = new mongoose.Schema({
   timestamps: true
 });
 
-studentSchema.index({ 'academic.branch': 1, 'academic.year': 1 });
+studentSchema.index({ 'academic.department': 1, 'academic.batch': 1 });
 studentSchema.index({ role: 1 });
 studentSchema.index({ 'metadata.isActive': 1 });
 
