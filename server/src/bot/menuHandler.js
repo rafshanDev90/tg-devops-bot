@@ -41,20 +41,20 @@ export async function handleMenuCallback(ctx) {
       return ctx.answerCbQuery('Use /study ask <question> to ask AI');
 
     case 'study_assign':
-      return ctx.answerCbQuery('Loading assignments...').then(() => {
-        const { handleAssignments } = require('./handlers.js');
+      return ctx.answerCbQuery('Loading assignments...').then(async () => {
+        const { handleAssignments } = await import('./handlers.js');
         return handleAssignments(ctx);
       });
 
     case 'routine_today':
-      return ctx.answerCbQuery('Loading today\'s classes...').then(() => {
-        const { handleToday } = require('./handlers.js');
+      return ctx.answerCbQuery('Loading today\'s classes...').then(async () => {
+        const { handleToday } = await import('./handlers.js');
         return handleToday(ctx);
       });
 
     case 'routine_week':
-      return ctx.answerCbQuery('Loading weekly routine...').then(() => {
-        const { handleRoutine } = require('./handlers.js');
+      return ctx.answerCbQuery('Loading weekly routine...').then(async () => {
+        const { handleRoutine } = await import('./handlers.js');
         return handleRoutine(ctx);
       });
 
@@ -64,20 +64,20 @@ export async function handleMenuCallback(ctx) {
       });
 
     case 'routine_clear':
-      return ctx.answerCbQuery('Clearing routine...').then(() => {
-        const { handleClearRoutine } = require('./handlers.js');
+      return ctx.answerCbQuery('Clearing routine...').then(async () => {
+        const { handleClearRoutine } = await import('./handlers.js');
         return handleClearRoutine(ctx);
       });
 
     case 'notes_add':
-      return ctx.answerCbQuery('Starting note creation...').then(() => {
-        const { handleAddNote } = require('./notes/handlers/noteCommands.js');
+      return ctx.answerCbQuery('Starting note creation...').then(async () => {
+        const { handleAddNote } = await import('../notes/handlers/noteCommands.js');
         return handleAddNote(ctx);
       });
 
     case 'notes_list':
-      return ctx.answerCbQuery('Loading notes...').then(() => {
-        const { handleListNotes } = require('./notes/handlers/noteCommands.js');
+      return ctx.answerCbQuery('Loading notes...').then(async () => {
+        const { handleListNotes } = await import('../notes/handlers/noteCommands.js');
         return handleListNotes(ctx);
       });
 
@@ -85,17 +85,24 @@ export async function handleMenuCallback(ctx) {
       return ctx.answerCbQuery('Use /notes search <keyword>');
 
     case 'notes_tags':
-      return ctx.answerCbQuery('Loading tags...').then(() => {
-        const { handleListTags } = require('./notes/handlers/noteCommands.js');
+      return ctx.answerCbQuery('Loading tags...').then(async () => {
+        const { handleListTags } = await import('../notes/handlers/noteCommands.js');
         return handleListTags(ctx);
+      });
+
+    case 'notes_cancel':
+      return ctx.answerCbQuery('Creation cancelled.').then(async () => {
+        const { noteSessionManager } = await import('../notes/managers/sessionManager.js');
+        noteSessionManager.cancelSession(ctx.from.id);
+        return ctx.editMessageText('❌ Note creation cancelled.');
       });
 
     case 'profile_edit':
       return ctx.answerCbQuery('Use /profile edit to update');
 
     case 'profile_stats':
-      return ctx.answerCbQuery('Loading stats...').then(() => {
-        const { handleProfileStats } = require('./handlers.js');
+      return ctx.answerCbQuery('Loading stats...').then(async () => {
+        const { handleProfileStats } = await import('./handlers.js');
         return handleProfileStats(ctx);
       });
 
@@ -155,7 +162,7 @@ async function handleAdminAction(ctx, action) {
         _handleAdminUsers: handleAdminUsers,
         _handleAdminBroadcast: handleAdminBroadcast,
         _handleAdminStats: handleAdminStats,
-      } = require('./handlers.js');
+      } = await import('./handlers.js');
 
       const actions = {
         dashboard: handleAdmin,

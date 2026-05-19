@@ -22,7 +22,8 @@ const listTags = new ListTagsUseCase();
 
 export async function handleNotesCommand(ctx, next) {
   await requireNoteAccess(ctx, async () => {
-    const args = ctx.message.text.replace('/notes', '').trim().split(' ');
+    const text = ctx.message?.text || '';
+    const args = text.replace('/notes', '').trim().split(' ');
     const subcommand = args[0]?.toLowerCase();
 
     switch (subcommand) {
@@ -35,10 +36,14 @@ export async function handleNotesCommand(ctx, next) {
       case 'tags':
         return handleListTags(ctx);
       case 'help':
-      default:
         return showNotesHelp(ctx);
+      default:
+        const { MenuBuilder } = await import('../../bot/menuBuilder.js');
+        return ctx.reply(MenuBuilder.notesMenu().text, {
+          parse_mode: 'HTML',
+          reply_markup: MenuBuilder.notesMenu().reply_markup,
+        });
     }
-    return next();
   });
 }
 
@@ -122,7 +127,7 @@ export async function handleNoteCallback(ctx) {
   return ctx.answerCbQuery();
 }
 
-async function handleAddNote(ctx) {
+export async function handleAddNote(ctx) {
   noteSessionManager.startNoteCreation(ctx.from.id);
   ctx.reply(
     `📝 <b>Create New Note</b>\n\n` +
@@ -132,7 +137,7 @@ async function handleAddNote(ctx) {
   );
 }
 
-async function handleListNotes(ctx, filter) {
+export async function handleListNotes(ctx, filter) {
   let category, tag;
 
   if (filter) {
@@ -171,7 +176,7 @@ async function handleListNotes(ctx, filter) {
   );
 }
 
-async function handleSearchNotes(ctx, query) {
+export async function handleSearchNotes(ctx, query) {
   if (!query) {
     return ctx.reply('❌ Usage: /notes search <keyword>');
   }
@@ -199,7 +204,7 @@ async function handleSearchNotes(ctx, query) {
   );
 }
 
-async function handleListTags(ctx) {
+export async function handleListTags(ctx) {
   const result = await listTags.execute({ userId: ctx.from.id });
   if (!result.success || !result.data.length) {
     return ctx.reply('🏷️ No tags found.');

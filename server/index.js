@@ -118,7 +118,7 @@ bot.command('profile', handleProfileMenu);
 bot.command('profile_edit', (ctx) => handleProfileEdit(ctx, ctx.message.text.replace('/profile_edit', '').trim().split(' ')));
 bot.command('profile_stats', handleProfileStats);
 
-bot.command('notes', handleNotesMenu);
+bot.command('notes', handleNotesCommand);
 bot.command('notes_add', handleNotesAdd);
 bot.command('notes_list', (ctx) => handleNotesList(ctx, ctx.message.text.replace('/notes_list', '').trim().split(' ')));
 bot.command('notes_search', (ctx) => handleNotesSearch(ctx, ctx.message.text.replace('/notes_search', '').trim().split(' ')));

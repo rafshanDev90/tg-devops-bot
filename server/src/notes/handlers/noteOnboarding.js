@@ -54,11 +54,16 @@ async function handleTitleStep(ctx, telegramId, title) {
 
   noteSessionManager.advanceStep(telegramId, STEPS.AWAITING_TITLE, title);
 
-  const keyboard = Object.entries(CATEGORY_LABELS).map(([code, label], i, arr) => {
-    const row = [{ text: label, callback_data: `cat_${code}` }];
-    if (arr[i + 1]) row.push({ text: CATEGORY_LABELS[arr[i + 1][0]], callback_data: `cat_${arr[i + 1][0]}` });
-    return row;
-  });
+  const keyboard = [];
+  const entries = Object.entries(CATEGORY_LABELS);
+  for (let i = 0; i < entries.length; i += 2) {
+    const row = [{ text: entries[i][1], callback_data: `cat_${entries[i][0]}` }];
+    if (entries[i + 1]) {
+      row.push({ text: entries[i + 1][1], callback_data: `cat_${entries[i + 1][0]}` });
+    }
+    keyboard.push(row);
+  }
+  keyboard.push([{ text: '🔙 Cancel', callback_data: 'notes_cancel' }]);
 
   await ctx.reply(
     `✅ Title: <b>${escapeHtml(title)}</b>\n\n` +
@@ -103,7 +108,8 @@ async function handleTagsStep(ctx, telegramId, text) {
       reply_markup: {
         inline_keyboard: [
           [{ text: '🔒 Yes, Encrypt', callback_data: 'encrypt_yes' }],
-          [{ text: '📄 No, Plain Text', callback_data: 'encrypt_no' }]
+          [{ text: '📄 No, Plain Text', callback_data: 'encrypt_no' }],
+          [{ text: '🔙 Cancel', callback_data: 'notes_cancel' }]
         ]
       }
     }

@@ -56,12 +56,17 @@ export async function handleStatus(ctx) {
 }
 
 export async function handleAsk(ctx) {
-  const question = ctx.message.text.replace('/ask', '').trim();
+  const text = ctx.message?.text || ctx.message?.caption || '';
+  const question = text.replace('/ask', '').trim();
   if (!question) {
     return ctx.reply('Please provide a question. Usage: /ask <your question>');
   }
 
   const student = await getOrCreateStudent(ctx);
+  if (!student) {
+    return ctx.reply('⚠️ Please set up your profile first using /setup_profile.');
+  }
+
   await ctx.reply('Thinking...');
   try {
     const answer = await studyAgent.answerQuestion(question, student._id);
@@ -114,6 +119,9 @@ export async function handleAsk(ctx) {
 
 export async function handleAssignments(ctx) {
   const student = await getOrCreateStudent(ctx);
+  if (!student) {
+    return ctx.reply('⚠️ Please set up your profile first using /setup_profile.');
+  }
   const assignments = await AssignmentStatus.find({ studentId: student._id })
     .sort({ dueDate: 1 })
     .limit(20)
@@ -312,6 +320,7 @@ export async function handleStudyAsk(ctx, args) {
   const student = await getOrCreateStudent(ctx);
   if (!student) return ctx.reply('⚠️ Use /setup_profile first.');
 
+  if (!ctx.message) ctx.message = {};
   ctx.message.text = `/ask ${question}`;
   return handleAsk(ctx);
 }
@@ -368,22 +377,22 @@ export async function handleNotesMenu(ctx) {
 }
 
 export async function handleNotesAdd(ctx) {
-  const { handleAddNote } = await import('./notes/handlers/noteCommands.js');
+  const { handleAddNote } = await import('../notes/handlers/noteCommands.js');
   return handleAddNote(ctx);
 }
 
 export async function handleNotesList(ctx, args) {
-  const { handleListNotes } = await import('./notes/handlers/noteCommands.js');
+  const { handleListNotes } = await import('../notes/handlers/noteCommands.js');
   return handleListNotes(ctx, args[0]);
 }
 
 export async function handleNotesSearch(ctx, args) {
-  const { handleSearchNotes } = await import('./notes/handlers/noteCommands.js');
+  const { handleSearchNotes } = await import('../notes/handlers/noteCommands.js');
   return handleSearchNotes(ctx, args.join(' '));
 }
 
 export async function handleNotesTags(ctx) {
-  const { handleListTags } = await import('./notes/handlers/noteCommands.js');
+  const { handleListTags } = await import('../notes/handlers/noteCommands.js');
   return handleListTags(ctx);
 }
 
