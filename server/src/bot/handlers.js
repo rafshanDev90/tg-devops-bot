@@ -8,6 +8,7 @@ import { asyncHandler } from '../utils/asyncHandler.js';
 import { SupabaseError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 import { requireAdmin } from '../middleware/admin.js';
+import { MenuBuilder } from './menuBuilder.js';
 
 const aiService = new AIService();
 const studyAgent = new StudyAgent(aiService);
@@ -35,15 +36,15 @@ async function getOrCreateStudent(ctx) {
 export async function handleStart(ctx) {
   const existingStudent = await Student.findOne({ telegramId: ctx.from.id });
   if (existingStudent && existingStudent.metadata.onboardingCompleted) {
-    return ctx.reply(
-      `👋 Welcome back, ${escapeHtml(existingStudent.name)}!\n\n` +
-      `Use /help to see available commands.`
-    );
+    return ctx.reply(MenuBuilder.mainMenu().text, {
+      parse_mode: 'HTML',
+      reply_markup: MenuBuilder.mainMenu().reply_markup,
+    });
   }
   return ctx.reply(
     `🎓 Welcome to AMUST Hub!\n\n` +
-    `Use /setup_profile to set up your account first.\n` +
-    `Use /help to see available commands.`
+    `Use /setup_profile to set up your account first.`,
+    { parse_mode: 'HTML' }
   );
 }
 
@@ -293,28 +294,177 @@ export const handleRoutine = asyncHandler(async (ctx) => {
 export const handleClearRoutine = asyncHandler(async (ctx) => {
   const telegramId = ctx.from.id;
   await routineService.clearRoutine(telegramId);
-  ctx.reply('🗑️ Your routine has been cleared. Use /upload_routine to add a new one.');
+  ctx.reply('🗑️ Your routine has been cleared. Use /routine upload to add a new one.');
 });
+
+export async function handleStudyMenu(ctx) {
+  ctx.reply(MenuBuilder.studyMenu().text, {
+    parse_mode: 'HTML',
+    reply_markup: MenuBuilder.studyMenu().reply_markup,
+  });
+}
+
+export async function handleStudyAsk(ctx, args) {
+  const question = args.join(' ').trim();
+  if (!question) {
+    return ctx.reply('❌ Usage: /study ask <your question>');
+  }
+  const student = await getOrCreateStudent(ctx);
+  if (!student) return ctx.reply('⚠️ Use /setup_profile first.');
+
+  ctx.message.text = `/ask ${question}`;
+  return handleAsk(ctx);
+}
+
+export async function handleStudyAssign(ctx) {
+  return handleAssignments(ctx);
+}
+
+export async function handleRoutineMenu(ctx) {
+  ctx.reply(MenuBuilder.routineMenu().text, {
+    parse_mode: 'HTML',
+    reply_markup: MenuBuilder.routineMenu().reply_markup,
+  });
+}
+
+export async function handleRoutineToday(ctx) {
+  return handleToday(ctx);
+}
+
+export async function handleRoutineWeek(ctx) {
+  return handleRoutine(ctx);
+}
+
+export async function handleRoutineUpload(ctx) {
+  ctx.reply('📤 Send your routine as:\n• Image with caption\n• Text message\n• .txt file');
+}
+
+export async function handleRoutineClear(ctx) {
+  return handleClearRoutine(ctx);
+}
+
+export async function handleProfileMenu(ctx) {
+  const student = await Student.findOne({ telegramId: ctx.from.id });
+  if (!student) return ctx.reply('⚠️ Use /setup_profile first.');
+  ctx.reply(MenuBuilder.profileMenu(student).text, {
+    parse_mode: 'HTML',
+    reply_markup: MenuBuilder.profileMenu(student).reply_markup,
+  });
+}
+
+export async function handleProfileEdit(ctx, args) {
+  if (!args.length) {
+    return ctx.reply('❌ Usage: /profile edit <field> <value>\nFields: name, university, department, batch, id, language, reminder');
+  }
+  ctx.message.text = `/edit_profile ${args.join(' ')}`;
+  return handleEditProfile(ctx);
+}
+
+export async function handleNotesMenu(ctx) {
+  ctx.reply(MenuBuilder.notesMenu().text, {
+    parse_mode: 'HTML',
+    reply_markup: MenuBuilder.notesMenu().reply_markup,
+  });
+}
+
+export async function handleNotesAdd(ctx) {
+  const { handleAddNote } = await import('./notes/handlers/noteCommands.js');
+  return handleAddNote(ctx);
+}
+
+export async function handleNotesList(ctx, args) {
+  const { handleListNotes } = await import('./notes/handlers/noteCommands.js');
+  return handleListNotes(ctx, args[0]);
+}
+
+export async function handleNotesSearch(ctx, args) {
+  const { handleSearchNotes } = await import('./notes/handlers/noteCommands.js');
+  return handleSearchNotes(ctx, args.join(' '));
+}
+
+export async function handleNotesTags(ctx) {
+  const { handleListTags } = await import('./notes/handlers/noteCommands.js');
+  return handleListTags(ctx);
+}
+
+export async function handleAdminMenu(ctx) {
+  await requireAdmin(ctx, async () => {
+    ctx.reply(MenuBuilder.adminMenu().text, {
+      parse_mode: 'HTML',
+      reply_markup: MenuBuilder.adminMenu().reply_markup,
+    });
+  });
+}
+
+export async function handleAdminUsers(ctx, args) {
+  await requireAdmin(ctx, async () => {
+    ctx.message.text = `/admin_users ${args.join(' ')}`;
+    return _handleAdminUsers(ctx, () => {});
+  });
+}
+
+export async function handleAdminBroadcast(ctx, args) {
+  await requireAdmin(ctx, async () => {
+    ctx.message.text = `/admin_broadcast ${args.join(' ')}`;
+    return _handleAdminBroadcast(ctx, () => {});
+  });
+}
+
+export async function handleAdminStats(ctx) {
+  await requireAdmin(ctx, async () => {
+    return _handleAdminStats(ctx, () => {});
+  });
+}
+
+export async function handleAdminSuspend(ctx, args) {
+  await requireAdmin(ctx, async () => {
+    ctx.message.text = `/admin_suspend ${args.join(' ')}`;
+    return _handleAdminSuspend(ctx, () => {});
+  });
+}
+
+export async function handleAdminActivate(ctx, args) {
+  await requireAdmin(ctx, async () => {
+    ctx.message.text = `/admin_activate ${args.join(' ')}`;
+    return _handleAdminActivate(ctx, () => {});
+  });
+}
+
+export async function handleAdminPromote(ctx, args) {
+  await requireAdmin(ctx, async () => {
+    ctx.message.text = `/admin_make_admin ${args.join(' ')}`;
+    return handleMakeAdmin(ctx, () => {});
+  });
+}
 
 export function handleHelp(ctx) {
   ctx.reply(
-    '📚 <b>Available Commands:</b>\n\n' +
-    '<b>Getting Started:</b>\n' +
-    '/setup_profile - Set up your profile (required)\n' +
-    '/start - Welcome back\n' +
-    '/profile - View your profile\n' +
-    '/edit_profile - Update your info\n' +
-    '/status - System health\n' +
-    '/help - Show this message\n\n' +
-    '<b>Study:</b>\n' +
-    '/ask &lt;question&gt; - Ask a study question\n' +
-    '/assignments - View your assignments\n\n' +
-    '<b>Routine:</b>\n' +
-    '/upload_routine - Upload your class routine (image, text, or .txt file)\n' +
-    '/today - Show today\'s class schedule\n' +
-    '/routine - Show full weekly routine\n' +
-    '/clear_routine - Delete your saved routine\n\n' +
-    '💡 <i>Daily reminders are sent at 6:00 AM (Bangladesh time)</i>',
+    `📚 <b>AMUST Hub — Command Guide</b>\n\n` +
+    `<b>Main Menu:</b>\n` +
+    `/start — Open main menu\n` +
+    `/help — Show this guide\n\n` +
+    `<b>📖 Study:</b>\n` +
+    `/study — Study menu\n` +
+    `/study ask &lt;q&gt; — Ask AI\n` +
+    `/study assign — Assignments\n\n` +
+    `<b>📅 Routine:</b>\n` +
+    `/routine — Routine menu\n` +
+    `/routine today — Today's classes\n` +
+    `/routine week — Weekly view\n` +
+    `/routine upload — Upload routine\n` +
+    `/routine clear — Clear routine\n\n` +
+    `<b>📝 Notes:</b>\n` +
+    `/notes — Notes menu\n` +
+    `/notes add — Create note\n` +
+    `/notes list — List notes\n` +
+    `/notes search &lt;q&gt; — Search\n` +
+    `/notes tags — View tags\n` +
+    `/view_note &lt;id&gt; — View note\n\n` +
+    `<b>👤 Profile:</b>\n` +
+    `/profile — Profile menu\n` +
+    `/profile edit — Edit info\n` +
+    `/profile stats — Activity stats\n\n` +
+    `💡 <i>Use the inline menus for easier navigation!</i>`,
     { parse_mode: 'HTML' }
   );
 }
@@ -369,6 +519,26 @@ export const handleProfile = asyncHandler(async (ctx) => {
     `   Daily reminder: ${student.preferences?.dailyReminderEnabled ? '✅ ON' : '❌ OFF'}\n` +
     `   Notifications: ${student.preferences?.notificationsEnabled ? '✅ ON' : '❌ OFF'}`,
     { parse_mode: 'HTML' }
+  );
+});
+
+export const handleProfileStats = asyncHandler(async (ctx) => {
+  const student = await Student.findOne({ telegramId: ctx.from.id });
+  if (!student) return ctx.reply('⚠️ Use /setup_profile first.');
+
+  const daysSinceJoin = Math.floor((Date.now() - student.createdAt.getTime()) / (1000 * 60 * 60 * 24));
+  const lastActive = student.metadata.lastActiveAt ? timeAgo(student.metadata.lastActiveAt) : 'Never';
+  const history = student.metadata.commandHistory || [];
+  const recentCommands = history.slice(-10).map(h => `${h.command} (${timeAgoShort(h.usedAt)})`).join('\n');
+
+  ctx.reply(
+    `📊 <b>Activity Stats</b>\n\n` +
+    `🔢 Total commands: ${student.metadata.totalCommands || 0}\n` +
+    `📅 Member since: ${daysSinceJoin} days ago\n` +
+    `⏰ Last active: ${lastActive}\n\n` +
+    `<b>Recent Activity:</b>\n` +
+    `${recentCommands || 'No activity yet'}`,
+    { parse_mode: 'HTML', reply_markup: { inline_keyboard: [[{ text: '🔙 Back', callback_data: 'menu_profile' }]] } }
   );
 });
 
@@ -441,7 +611,7 @@ export const handleEditProfile = asyncHandler(async (ctx) => {
   ctx.reply(`✅ Profile updated! ${field} set to "${escapeHtml(value)}".`);
 });
 
-export const handleAdmin = asyncHandler(async (ctx, next) => {
+export const _handleAdmin = asyncHandler(async (ctx, next) => {
   await requireAdmin(ctx, async () => {
     const totalUsers = await Student.countDocuments();
     const activeUsers = await Student.countDocuments({ 'metadata.isActive': true });
@@ -502,7 +672,7 @@ export const handleAdmin = asyncHandler(async (ctx, next) => {
   });
 });
 
-export const handleAdminUsers = asyncHandler(async (ctx, next) => {
+export const _handleAdminUsers = asyncHandler(async (ctx, next) => {
   await requireAdmin(ctx, async () => {
     const args = ctx.message.text.replace('/admin_users', '').trim();
 
@@ -546,7 +716,7 @@ export const handleAdminUsers = asyncHandler(async (ctx, next) => {
   });
 });
 
-export const handleAdminBroadcast = asyncHandler(async (ctx, next) => {
+export const _handleAdminBroadcast = asyncHandler(async (ctx, next) => {
   await requireAdmin(ctx, async () => {
     const message = ctx.message.text.replace('/admin_broadcast', '').trim();
     if (!message) {
@@ -585,7 +755,7 @@ export const handleAdminBroadcast = asyncHandler(async (ctx, next) => {
   });
 });
 
-export const handleAdminStats = asyncHandler(async (ctx, next) => {
+export const _handleAdminStats = asyncHandler(async (ctx, next) => {
   await requireAdmin(ctx, async () => {
     const totalCommands = await Student.aggregate([
       { $group: { _id: null, total: { $sum: '$metadata.totalCommands' } } }
@@ -622,7 +792,7 @@ export const handleAdminStats = asyncHandler(async (ctx, next) => {
   });
 });
 
-export const handleAdminSuspend = asyncHandler(async (ctx, next) => {
+export const _handleAdminSuspend = asyncHandler(async (ctx, next) => {
   await requireAdmin(ctx, async () => {
     const telegramId = parseInt(ctx.message.text.replace('/admin_suspend', '').trim());
     if (!telegramId) {
@@ -643,7 +813,7 @@ export const handleAdminSuspend = asyncHandler(async (ctx, next) => {
   });
 });
 
-export const handleAdminActivate = asyncHandler(async (ctx, next) => {
+export const _handleAdminActivate = asyncHandler(async (ctx, next) => {
   await requireAdmin(ctx, async () => {
     const telegramId = parseInt(ctx.message.text.replace('/admin_activate', '').trim());
     if (!telegramId) {

@@ -17,13 +17,30 @@ import {
   initRoutine,
   handleProfile,
   handleEditProfile,
-  handleAdmin,
-  handleAdminUsers,
-  handleAdminBroadcast,
-  handleAdminStats,
-  handleAdminSuspend,
-  handleAdminActivate,
+  handleProfileStats,
   handleMakeAdmin,
+  handleStudyMenu,
+  handleStudyAsk,
+  handleStudyAssign,
+  handleRoutineMenu,
+  handleRoutineToday,
+  handleRoutineWeek,
+  handleRoutineUpload,
+  handleRoutineClear,
+  handleProfileMenu,
+  handleProfileEdit,
+  handleNotesMenu,
+  handleNotesAdd,
+  handleNotesList,
+  handleNotesSearch,
+  handleNotesTags,
+  handleAdminMenu,
+  handleAdminPromote,
+  _handleAdminUsers,
+  _handleAdminBroadcast,
+  _handleAdminStats,
+  _handleAdminSuspend,
+  _handleAdminActivate,
 } from './src/bot/handlers.js';
 import {
   handleStart as handleOnboardingStart,
@@ -32,6 +49,14 @@ import {
   handleUniversityCallback,
   handleSetupProfile,
 } from './src/bot/onboardingHandlers.js';
+import { handleMenuCallback } from './src/bot/menuHandler.js';
+import {
+  handleNotesCommand,
+  handleNoteViewCommand,
+  handleNoteCallback,
+} from './src/notes/handlers/noteCommands.js';
+import { handleNoteCreationMessage } from './src/notes/handlers/noteOnboarding.js';
+import { noteSessionManager } from './src/notes/managers/sessionManager.js';
 import { trackActivity } from './src/middleware/admin.js';
 import { onboardingManager } from './src/services/onboardingManager.js';
 import { AIService } from './src/services/aiServices.js';
@@ -77,31 +102,66 @@ bot.use(trackActivity);
 
 bot.start(handleOnboardingStart);
 bot.command('setup_profile', handleSetupProfile);
+bot.command('help', handleHelp);
+
+bot.command('study', handleStudyMenu);
+bot.command('study_ask', (ctx) => handleStudyAsk(ctx, ctx.message.text.replace('/study_ask', '').trim().split(' ')));
+bot.command('study_assign', handleStudyAssign);
+
+bot.command('routine', handleRoutineMenu);
+bot.command('routine_today', handleRoutineToday);
+bot.command('routine_week', handleRoutineWeek);
+bot.command('routine_upload', handleRoutineUpload);
+bot.command('routine_clear', handleRoutineClear);
+
+bot.command('profile', handleProfileMenu);
+bot.command('profile_edit', (ctx) => handleProfileEdit(ctx, ctx.message.text.replace('/profile_edit', '').trim().split(' ')));
+bot.command('profile_stats', handleProfileStats);
+
+bot.command('notes', handleNotesMenu);
+bot.command('notes_add', handleNotesAdd);
+bot.command('notes_list', (ctx) => handleNotesList(ctx, ctx.message.text.replace('/notes_list', '').trim().split(' ')));
+bot.command('notes_search', (ctx) => handleNotesSearch(ctx, ctx.message.text.replace('/notes_search', '').trim().split(' ')));
+bot.command('notes_tags', handleNotesTags);
+bot.command('view_note', handleNoteViewCommand);
+
+bot.command('admin', handleAdminMenu);
+bot.command('admin_users', (ctx) => handleAdminUsers(ctx, ctx.message.text.replace('/admin_users', '').trim().split(' ')));
+bot.command('admin_broadcast', (ctx) => handleAdminBroadcast(ctx, ctx.message.text.replace('/admin_broadcast', '').trim().split(' ')));
+bot.command('admin_stats', _handleAdminStats);
+bot.command('admin_suspend', (ctx) => handleAdminSuspend(ctx, ctx.message.text.replace('/admin_suspend', '').trim().split(' ')));
+bot.command('admin_activate', (ctx) => handleAdminActivate(ctx, ctx.message.text.replace('/admin_activate', '').trim().split(' ')));
+bot.command('admin_promote', (ctx) => handleAdminPromote(ctx, ctx.message.text.replace('/admin_promote', '').trim().split(' ')));
+
 bot.command('status', handleStatus);
 bot.command('ask', handleAsk);
 bot.command('assignments', handleAssignments);
-bot.command('help', handleHelp);
 bot.command('upload_routine', handleUploadRoutine);
 bot.command('today', handleToday);
-bot.command('routine', handleRoutine);
 bot.command('clear_routine', handleClearRoutine);
-bot.command('profile', handleProfile);
 bot.command('edit_profile', handleEditProfile);
-bot.command('admin', handleAdmin);
-bot.command('admin_users', handleAdminUsers);
-bot.command('admin_broadcast', handleAdminBroadcast);
-bot.command('admin_stats', handleAdminStats);
-bot.command('admin_suspend', handleAdminSuspend);
-bot.command('admin_activate', handleAdminActivate);
+bot.command('admin_users_legacy', _handleAdminUsers);
+bot.command('admin_broadcast_legacy', _handleAdminBroadcast);
+bot.command('admin_suspend_legacy', _handleAdminSuspend);
+bot.command('admin_activate_legacy', _handleAdminActivate);
 bot.command('admin_make_admin', handleMakeAdmin);
 
 bot.on('callback_query', (ctx) => {
   const data = ctx.callbackQuery.data;
+  if (data.startsWith('menu_') || data.startsWith('study_') || data.startsWith('routine_') ||
+      data.startsWith('profile_') || data.startsWith('notes_') || data.startsWith('admin_')) {
+    return handleMenuCallback(ctx);
+  }
   if (data.startsWith('uni_')) {
     return handleUniversityCallback(ctx);
   }
   if (data.startsWith('dept_')) {
     return handleDepartmentCallback(ctx);
+  }
+  if (data.startsWith('reveal_') || data.startsWith('copy_') || data.startsWith('edit_') ||
+      data.startsWith('confirm_delete_') || data.startsWith('delete_') || data.startsWith('cancel_delete_') ||
+      data.startsWith('cat_') || data.startsWith('encrypt_')) {
+    return handleNoteCallback(ctx);
   }
   return ctx.answerCbQuery();
 });
@@ -109,6 +169,7 @@ bot.on('callback_query', (ctx) => {
 bot.on('text', async (ctx) => {
   if (ctx.message.text && !ctx.message.text.startsWith('/')) {
     await handleOnboardingMessage(ctx);
+    await handleNoteCreationMessage(ctx);
   }
 });
 
@@ -127,24 +188,15 @@ bot.on('document', (ctx) => {
 
 bot.catch(handleError);
 
-// Set bot commands for auto-suggestion
+// Set bot commands for auto-suggestion (clean menu)
 bot.telegram.setMyCommands([
-  { command: 'setup_profile', description: 'Set up your profile (required)' },
-  { command: 'start', description: 'Start the bot' },
-  { command: 'today', description: 'Show today\'s classes' },
-  { command: 'routine', description: 'Show weekly routine' },
-  { command: 'upload_routine', description: 'Upload routine (image/text)' },
-  { command: 'ask', description: 'Ask a study question' },
-  { command: 'assignments', description: 'View assignments' },
-  { command: 'profile', description: 'View your profile' },
-  { command: 'edit_profile', description: 'Edit your profile' },
-  { command: 'status', description: 'Check system status' },
-  { command: 'clear_routine', description: 'Clear your routine' },
-  { command: 'help', description: 'Show help message' },
-  { command: 'admin', description: 'Admin dashboard' },
-  { command: 'admin_users', description: 'List/search users' },
-  { command: 'admin_broadcast', description: 'Broadcast message to all' },
-  { command: 'admin_stats', description: 'Detailed analytics' },
+  { command: 'start', description: 'Main menu' },
+  { command: 'help', description: 'Command guide' },
+  { command: 'profile', description: 'Profile & settings' },
+  { command: 'study', description: 'Study assistant' },
+  { command: 'routine', description: 'Class schedule' },
+  { command: 'notes', description: 'Knowledge vault' },
+  { command: 'status', description: 'System health' },
 ]);
 
 bot.launch().then(() => logger.info('Bot', 'Running'))
@@ -174,6 +226,7 @@ process.once('SIGINT', () => {
   mongoose.disconnect();
   dailyJob.stop();
   onboardingManager.stop();
+  noteSessionManager.stop();
   server.close();
   process.exit(0);
 });
@@ -183,6 +236,7 @@ process.once('SIGTERM', () => {
   mongoose.disconnect();
   dailyJob.stop();
   onboardingManager.stop();
+  noteSessionManager.stop();
   server.close();
   process.exit(0);
 });
