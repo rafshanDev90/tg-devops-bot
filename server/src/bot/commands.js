@@ -50,8 +50,9 @@ import {
   handleUniversityCallback,
   handleSetupProfile,
 } from './onboardingHandlers.js';
-import { handleMenuCallback, handleBotSession } from './menuHandler.js';
+import { handleMenuCallback, handleBotSession, multiLineKeyboard } from './menuHandler.js';
 import { botSessionManager } from './botSessionManager.js';
+import { multiLineSessionManager } from './multiLineSessionManager.js';
 import {
   handleNotesCommand,
   handleNoteViewCommand,
@@ -65,7 +66,9 @@ import {
   handleLearnSearch,
   handleLearnStats,
 } from '../learning/handlers/learningCommands.js';
-import { handleRun, handleRunGrant } from './runHandler.js';
+import { handleRun, handleRunGrant, handleRunExecute, handleRunClear, handleRunCancel, codeKeyboard } from './runHandler.js';
+import { codeSessionManager } from './codeSessionManager.js';
+import { escapeHtml } from '../utils/html.js';
 import { rateLimit } from '../middleware/rateLimit.js';
 import { trackActivity } from '../middleware/admin.js';
 
@@ -165,6 +168,28 @@ export function registerCommands(bot) {
   // Text messages
   bot.on('text', async (ctx) => {
     if (!ctx.message.text.startsWith('/')) {
+      // Code session (Python Lab)
+      const codeSession = codeSessionManager.get(ctx.from.id);
+      if (codeSession) {
+        codeSessionManager.append(ctx.from.id, ctx.message.text);
+        const code = codeSessionManager.get(ctx.from.id).code;
+        return ctx.reply(
+          `💻 <b>Python Lab</b>\n\n<pre>${escapeHtml(code)}</pre>\n\n<i>Lines: ${code.split('\n').length}</i>\n\nPress ▶ Execute to run, or keep typing.`,
+          { parse_mode: 'HTML', reply_markup: codeKeyboard() }
+        );
+      }
+
+      // Multi-line session (study ask, search, learn, etc.)
+      const mlSession = multiLineSessionManager.get(ctx.from.id);
+      if (mlSession) {
+        multiLineSessionManager.append(ctx.from.id, ctx.message.text);
+        const text = multiLineSessionManager.get(ctx.from.id).text;
+        return ctx.editMessageText(
+          `📝 <b>${mlSession.title}</b>\n\n<pre>${escapeHtml(text)}</pre>\n\n<i>Lines: ${text.split('\n').length}</i>\n\nPress ✅ ${mlSession.submitLabel} when ready.`,
+          { parse_mode: 'HTML', reply_markup: multiLineKeyboard(mlSession.submitLabel) }
+        );
+      }
+
       const handled = await handleBotSession(ctx);
       if (handled) return;
       await handleOnboardingMessage(ctx);

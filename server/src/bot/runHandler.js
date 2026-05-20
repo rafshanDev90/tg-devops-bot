@@ -3,8 +3,21 @@ import { Student } from '../models/Student.js';
 import { requireAdmin } from '../middleware/admin.js';
 import { logger } from '../utils/logger.js';
 import { escapeHtml } from '../utils/html.js';
+import { codeSessionManager } from './codeSessionManager.js';
 
 const DAILY_QUOTA_RESET_HOURS = 24;
+
+export function codeKeyboard() {
+  return {
+    inline_keyboard: [
+      [{ text: '▶ Execute', callback_data: 'run_execute' }],
+      [
+        { text: '🗑 Clear', callback_data: 'run_clear' },
+        { text: '❌ Cancel', callback_data: 'run_cancel' },
+      ],
+    ],
+  };
+}
 
 async function checkAccess(telegramId) {
   const student = await Student.findOne({ telegramId });
@@ -30,33 +43,49 @@ async function checkAccess(telegramId) {
   return { allowed: true, student };
 }
 
-function extractCode(text) {
-  const fenced = text.match(/```(?:python|py)?\n?([\s\S]*?)```/);
-  if (fenced) return fenced[1].trim();
-  const afterCmd = text.replace(/^\/run\s*/i, '').trim();
-  return afterCmd || null;
-}
-
 export async function handleRun(ctx) {
   const telegramId = ctx.from.id;
   const { allowed, reason, student } = await checkAccess(telegramId);
   if (!allowed) return ctx.reply(reason);
 
-  const code = extractCode(ctx.message?.text || '');
-  if (!code) {
-    return ctx.reply(
-      '💻 <b>Python Lab</b>\n\n' +
-      'Send Python code to execute in a secure sandbox.\n\n' +
-      '<b>Usage:</b>\n' +
-      '<pre>/run print("hello world")</pre>\n\n' +
-      'Or with a code block:\n' +
-      '<pre>/run\n```python\nimport torch\nprint(torch.__version__)\n```</pre>\n\n' +
-      'Use /run_status to check your quota.',
-      { parse_mode: 'HTML' }
-    );
+  const existing = ctx.message?.text?.replace(/^\/run\s*/i, '').trim();
+  if (existing) {
+    codeSessionManager.start(telegramId);
+    codeSessionManager.append(telegramId, existing);
+  } else {
+    codeSessionManager.start(telegramId);
   }
 
-  const statusMsg = await ctx.reply('⚙️ Running…');
+  const code = codeSessionManager.get(telegramId)?.code || '';
+  const codeDisplay = code
+    ? `<pre>${escapeHtml(code)}</pre>\n\n<i>Lines: ${code.split('\n').length}</i>`
+    : '<i>Type your Python code below. Each message is appended.</i>';
+
+  return ctx.reply(
+    `💻 <b>Python Lab</b>\n\n${codeDisplay}\n\n<b>Actions:</b>\n• Type code line by line\n• Press ▶ Execute to run\n• Press 🗑 Clear to reset\n• Press ❌ Cancel to exit`,
+    { parse_mode: 'HTML', reply_markup: codeKeyboard() }
+  );
+}
+
+export async function handleRunExecute(ctx) {
+  const telegramId = ctx.from.id;
+  const session = codeSessionManager.get(telegramId);
+
+  if (!session || !session.code) {
+    return ctx.answerCbQuery('⚠️ No code to execute. Type something first!');
+  }
+
+  const { allowed, reason, student } = await checkAccess(telegramId);
+  if (!allowed) {
+    codeSessionManager.end(telegramId);
+    return ctx.editMessageText(reason);
+  }
+
+  await ctx.answerCbQuery('⚙️ Running…');
+
+  const code = session.code;
+  codeSessionManager.end(telegramId);
+
   const result = await executionService.run(telegramId, code);
 
   if (student.role !== 'admin') {
@@ -64,19 +93,10 @@ export async function handleRun(ctx) {
     await student.save();
   }
 
-  if (!result.success) {
-    return ctx.telegram.editMessageText(
-      ctx.chat.id, statusMsg.message_id, null,
-      `❌ <b>Execution Error</b>\n\n<pre>${escapeHtml(result.error)}</pre>`,
-      { parse_mode: 'HTML' }
-    );
-  }
-
   const header = result.error ? '⚠️ <b>Output (with errors)</b>' : '✅ <b>Output</b>';
 
   if (result.truncated) {
-    await ctx.telegram.editMessageText(
-      ctx.chat.id, statusMsg.message_id, null,
+    await ctx.editMessageText(
       `${header}\n\n<pre>${escapeHtml(result.shortOutput)}</pre>\n\n<i>Output truncated. Full output attached.</i>`,
       { parse_mode: 'HTML' }
     );
@@ -86,14 +106,29 @@ export async function handleRun(ctx) {
     );
   }
 
-  return ctx.telegram.editMessageText(
-    ctx.chat.id, statusMsg.message_id, null,
+  return ctx.editMessageText(
     `${header}\n\n<pre>${escapeHtml(result.shortOutput)}</pre>`,
     { parse_mode: 'HTML' }
   );
 }
 
-// Show user their current quota
+export async function handleRunClear(ctx) {
+  const telegramId = ctx.from.id;
+  codeSessionManager.clear(telegramId);
+  await ctx.answerCbQuery('🗑 Code cleared');
+  return ctx.editMessageText(
+    `💻 <b>Python Lab</b>\n\n<i>Type your Python code below. Each message is appended.</i>\n\n<b>Actions:</b>\n• Type code line by line\n• Press ▶ Execute to run\n• Press 🗑 Clear to reset\n• Press ❌ Cancel to exit`,
+    { parse_mode: 'HTML', reply_markup: codeKeyboard() }
+  );
+}
+
+export async function handleRunCancel(ctx) {
+  const telegramId = ctx.from.id;
+  codeSessionManager.end(telegramId);
+  await ctx.answerCbQuery('❌ Session cancelled');
+  return ctx.editMessageText('❌ Python Lab session cancelled.');
+}
+
 export async function handleRunStatus(ctx) {
   const student = await Student.findOne({ telegramId: ctx.from.id });
   if (!student) return ctx.reply('⚠️ Use /setup_profile first.');
@@ -126,7 +161,6 @@ export async function handleRunStatus(ctx) {
   );
 }
 
-// Admin-only: /run_grant <telegramId> <daily_limit>
 export async function handleRunGrant(ctx, args) {
   return requireAdmin(ctx, async () => {
     const [targetId, limitStr] = args;

@@ -3,6 +3,20 @@ import { Student } from '../models/Student.js';
 import { requireAdmin } from '../middleware/admin.js';
 import { logger } from '../utils/logger.js';
 import { botSessionManager } from './botSessionManager.js';
+import { multiLineSessionManager } from './multiLineSessionManager.js';
+import { escapeHtml } from '../utils/html.js';
+
+export function multiLineKeyboard(submitLabel = 'Submit', clearLabel = 'Clear') {
+  return {
+    inline_keyboard: [
+      [{ text: `✅ ${submitLabel}`, callback_data: 'multiline_submit' }],
+      [
+        { text: `🗑 ${clearLabel}`, callback_data: 'multiline_clear' },
+        { text: '❌ Cancel', callback_data: 'multiline_cancel' },
+      ],
+    ],
+  };
+}
 
 export async function handleMenuCallback(ctx) {
   const data = ctx.callbackQuery.data;
@@ -37,18 +51,30 @@ export async function handleMenuCallback(ctx) {
   }
   if (data.startsWith('learn_code_')) {
     const topicId = data.replace('learn_code_', '');
-    const { handleLearnCodePrompt } = await import('../learning/handlers/learningCommands.js');
-    return handleLearnCodePrompt(ctx, topicId);
+    multiLineSessionManager.start(ctx.from.id, 'learn_code', 'Add Code Snippet', 'Add Code');
+    multiLineSessionManager.get(ctx.from.id).data = { topicId };
+    return ctx.editMessageText(
+      '💻 <b>Add Code Snippet</b>\n\nType your code. Each message is appended.\n\nPress ✅ Add Code when ready.',
+      { parse_mode: 'HTML', reply_markup: multiLineKeyboard('Add Code') }
+    );
   }
   if (data.startsWith('learn_note_')) {
     const topicId = data.replace('learn_note_', '');
-    const { handleLearnNotePrompt } = await import('../learning/handlers/learningCommands.js');
-    return handleLearnNotePrompt(ctx, topicId);
+    multiLineSessionManager.start(ctx.from.id, 'learn_note', 'Add Note', 'Add Note');
+    multiLineSessionManager.get(ctx.from.id).data = { topicId };
+    return ctx.editMessageText(
+      '📝 <b>Add Note</b>\n\nType your note. First line = title, rest = content.\n\nPress ✅ Add Note when ready.',
+      { parse_mode: 'HTML', reply_markup: multiLineKeyboard('Add Note') }
+    );
   }
   if (data.startsWith('learn_schedule_')) {
     const topicId = data.replace('learn_schedule_', '');
-    const { handleLearnSchedulePrompt } = await import('../learning/handlers/learningCommands.js');
-    return handleLearnSchedulePrompt(ctx, topicId);
+    multiLineSessionManager.start(ctx.from.id, 'learn_schedule', 'Schedule Topic', 'Schedule');
+    multiLineSessionManager.get(ctx.from.id).data = { topicId };
+    return ctx.editMessageText(
+      '📅 <b>Schedule Topic</b>\n\nType date and time (e.g. 2026-05-25 14:00).\n\nPress ✅ Schedule when ready.',
+      { parse_mode: 'HTML', reply_markup: multiLineKeyboard('Schedule') }
+    );
   }
   if (data.startsWith('learn_pick_')) {
     const topicId = data.replace('learn_pick_', '');
@@ -88,29 +114,17 @@ export async function handleMenuCallback(ctx) {
       return handleStatusAction(ctx);
 
     case 'study_ask':
-      await ctx.answerCbQuery();
-      botSessionManager.start(ctx.from.id, 'study_ask');
+      multiLineSessionManager.start(ctx.from.id, 'study_ask', 'Ask AI', 'Send');
       return ctx.editMessageText(
-        '💬 <b>Ask AI</b>\n\nType your question and send it:',
-        {
-          parse_mode: 'HTML',
-          reply_markup: {
-            inline_keyboard: [[{ text: '❌ Cancel', callback_data: 'session_cancel' }]],
-          },
-        }
+        '💬 <b>Ask AI</b>\n\nType your question. Each message is appended.\n\nPress ✅ Send when ready.',
+        { parse_mode: 'HTML', reply_markup: multiLineKeyboard('Send') }
       );
 
     case 'study_search':
-      await ctx.answerCbQuery();
-      botSessionManager.start(ctx.from.id, 'study_search');
+      multiLineSessionManager.start(ctx.from.id, 'study_search', 'Web Search', 'Search');
       return ctx.editMessageText(
-        '🌐 <b>Web Search</b>\n\nType your search query:',
-        {
-          parse_mode: 'HTML',
-          reply_markup: {
-            inline_keyboard: [[{ text: '❌ Cancel', callback_data: 'session_cancel' }]],
-          },
-        }
+        '🌐 <b>Web Search</b>\n\nType your query. Each message is appended.\n\nPress ✅ Search when ready.',
+        { parse_mode: 'HTML', reply_markup: multiLineKeyboard('Search') }
       );
 
     case 'study_assign':
@@ -271,17 +285,17 @@ export async function handleMenuCallback(ctx) {
     }
 
     case 'learn_search_prompt':
-      return (await import('../learning/handlers/learningCommands.js')).handleLearnSearchPrompt(ctx);
+      multiLineSessionManager.start(ctx.from.id, 'learn_search', 'Search Topics', 'Search');
+      return ctx.editMessageText(
+        '🔍 <b>Search Topics</b>\n\nType keywords. Each message is appended.\n\nPress ✅ Search when ready.',
+        { parse_mode: 'HTML', reply_markup: multiLineKeyboard('Search') }
+      );
 
     case 'learn_add_prompt':
-      await ctx.answerCbQuery();
-      botSessionManager.start(ctx.from.id, 'learn_add');
+      multiLineSessionManager.start(ctx.from.id, 'learn_add', 'Add Topic', 'Add');
       return ctx.editMessageText(
-        '➕ <b>Add Topic</b>\n\nType the topic title and send it:\n<i>e.g. PyTorch Tensors</i>',
-        {
-          parse_mode: 'HTML',
-          reply_markup: { inline_keyboard: [[{ text: '❌ Cancel', callback_data: 'session_cancel' }]] },
-        }
+        '➕ <b>Add Topic</b>\n\nType the topic title. Each message is appended.\n\nPress ✅ Add when ready.',
+        { parse_mode: 'HTML', reply_markup: multiLineKeyboard('Add') }
       );
 
     case 'learn_status_prompt': {
@@ -291,15 +305,112 @@ export async function handleMenuCallback(ctx) {
     }
 
     case 'run_prompt':
-      await ctx.answerCbQuery();
-      botSessionManager.start(ctx.from.id, 'run_code');
-      return ctx.editMessageText(
-        '💻 <b>Python Lab</b>\n\nSend your Python code now:\n\n<pre>import torch\nprint(torch.__version__)</pre>',
-        {
-          parse_mode: 'HTML',
-          reply_markup: { inline_keyboard: [[{ text: '❌ Cancel', callback_data: 'session_cancel' }]] },
+      return ctx.answerCbQuery().then(async () => {
+        const { handleRun } = await import('./runHandler.js');
+        ctx.message = { text: '/run', from: ctx.from };
+        return handleRun(ctx);
+      });
+
+    case 'run_execute': {
+      const { handleRunExecute } = await import('./runHandler.js');
+      return handleRunExecute(ctx);
+    }
+
+    case 'run_clear': {
+      const { handleRunClear } = await import('./runHandler.js');
+      return handleRunClear(ctx);
+    }
+
+    case 'run_cancel': {
+      const { handleRunCancel } = await import('./runHandler.js');
+      return handleRunCancel(ctx);
+    }
+
+    case 'multiline_submit': {
+      const telegramId = ctx.from.id;
+      const session = multiLineSessionManager.get(telegramId);
+      if (!session || !session.text) {
+        return ctx.answerCbQuery('⚠️ Nothing to submit. Type something first!');
+      }
+      multiLineSessionManager.end(telegramId);
+      await ctx.answerCbQuery('✅ Submitting…');
+
+      switch (session.type) {
+        case 'study_ask': {
+          const { handleAsk } = await import('./handlers.js');
+          ctx.message.text = `/ask ${session.text}`;
+          return handleAsk(ctx);
         }
+        case 'study_search': {
+          const { handleSearch } = await import('./handlers.js');
+          return handleSearch(ctx, session.text.split(' '));
+        }
+        case 'learn_add': {
+          const { handleLearnAdd } = await import('../learning/handlers/learningCommands.js');
+          ctx.message.text = `/learn_add ${session.text}`;
+          return handleLearnAdd(ctx, session.text.split(' '));
+        }
+        case 'learn_search': {
+          const { handleLearnSearch } = await import('../learning/handlers/learningCommands.js');
+          return handleLearnSearch(ctx, session.text.split(' '));
+        }
+        case 'learn_note': {
+          const { CreateNoteUseCase, LinkNoteToTopicUseCase } = await import('../notes/useCases/index.js');
+          const createNote = new CreateNoteUseCase();
+          const link = new LinkNoteToTopicUseCase();
+          const parts = session.text.split('\n\n');
+          const noteTitle = parts[0] || 'Learning Note';
+          const noteContent = parts.slice(1).join('\n\n') || session.text;
+          const noteResult = await createNote.execute({
+            userId: telegramId,
+            title: noteTitle,
+            content: noteContent,
+            category: 'learning',
+          });
+          if (!noteResult.success) return ctx.reply(`❌ ${noteResult.error}`);
+          await link.execute({ userId: telegramId, topicId: session.data.topicId, noteId: noteResult.data._id });
+          return ctx.reply(`✅ Note linked to topic!`);
+        }
+        case 'learn_code': {
+          const { AddCodeSnippetUseCase } = await import('../learning/useCases/index.js');
+          const addSnippet = new AddCodeSnippetUseCase();
+          const result = await addSnippet.execute({
+            userId: telegramId,
+            topicId: session.data.topicId,
+            title: 'Snippet',
+            code: session.text,
+            language: 'python',
+          });
+          if (!result.success) return ctx.reply(`❌ ${result.error}`);
+          return ctx.reply('✅ Code snippet added!');
+        }
+        case 'learn_schedule': {
+          const { handleLearnSchedule } = await import('../learning/handlers/learningCommands.js');
+          return handleLearnSchedule(ctx, [session.data.topicId, ...session.text.split(' ')]);
+        }
+        default:
+          return ctx.reply('⚠️ Unknown session type.');
+      }
+    }
+
+    case 'multiline_clear': {
+      const telegramId = ctx.from.id;
+      const session = multiLineSessionManager.get(telegramId);
+      if (!session) return ctx.answerCbQuery('⚠️ No active session.');
+      multiLineSessionManager.clear(telegramId);
+      await ctx.answerCbQuery('🗑 Cleared');
+      return ctx.editMessageText(
+        `📝 <b>${session.title}</b>\n\n<i>Type your input. Each message is appended.</i>\n\nPress ✅ ${session.submitLabel} when ready.`,
+        { parse_mode: 'HTML', reply_markup: multiLineKeyboard(session.submitLabel) }
       );
+    }
+
+    case 'multiline_cancel': {
+      const telegramId = ctx.from.id;
+      multiLineSessionManager.end(telegramId);
+      await ctx.answerCbQuery('❌ Cancelled');
+      return ctx.editMessageText('❌ Session cancelled.');
+    }
 
     default:
       return ctx.answerCbQuery();
@@ -503,27 +614,8 @@ export async function handleBotSession(ctx) {
       return ctx.reply(`✅ Note linked to topic!`);
     }
 
-    case 'run_code': {
-      botSessionManager.end(telegramId);
-      if (!text) return ctx.reply('⚠️ Please send your code.');
-      const { handleRun } = await import('./runHandler.js');
-      // Inject text so handleRun can extract code from it
-      ctx.message.text = text;
-      await handleRun(ctx);
-      return true;
-    }
-
     default:
       botSessionManager.end(telegramId);
       return false;
   }
-}
-
-function escapeHtml(text) {
-  if (!text) return '';
-  return String(text)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
 }

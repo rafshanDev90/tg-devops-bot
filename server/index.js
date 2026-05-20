@@ -8,6 +8,8 @@ import { initRoutine } from './src/bot/handlers.js';
 import { onboardingManager } from './src/services/onboardingManager.js';
 import { noteSessionManager } from './src/notes/managers/sessionManager.js';
 import { botSessionManager } from './src/bot/botSessionManager.js';
+import { multiLineSessionManager } from './src/bot/multiLineSessionManager.js';
+import { codeSessionManager } from './src/bot/codeSessionManager.js';
 import { AIService } from './src/services/aiServices.js';
 import { RoutineAgent } from './src/agents/routineAgent.js';
 import { RoutineService } from './src/services/routineService.js';
@@ -91,6 +93,8 @@ async function shutdown(signal) {
   onboardingManager.stop();
   noteSessionManager.stop();
   botSessionManager.stop();
+  multiLineSessionManager.stop();
+  codeSessionManager.stop();
   await executionService.killAll();
   server.close();
   process.exit(0);

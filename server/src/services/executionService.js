@@ -52,8 +52,8 @@ class ExecutionService {
     }
 
     // Lazy import so the app starts even if @e2b/code-interpreter isn't installed
-    const { CodeInterpreter } = await import('@e2b/code-interpreter');
-    const sandbox = await CodeInterpreter.create({ apiKey: process.env.E2B_API_KEY });
+    const { Sandbox } = await import('@e2b/code-interpreter');
+    const sandbox = await Sandbox.create({ apiKey: process.env.E2B_API_KEY });
 
     const timer = setTimeout(() => this._killSession(userId), IDLE_TIMEOUT_MS);
     this.sessions.set(userId, { sandbox, lastUsedAt: Date.now(), timer });
