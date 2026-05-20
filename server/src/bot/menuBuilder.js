@@ -7,6 +7,8 @@ class MenuBuilder {
         `📖 <b>Study</b> — AI assistant & assignments\n` +
         `📅 <b>Routine</b> — Class schedules\n` +
         `📝 <b>Notes</b> — Personal knowledge vault\n` +
+        `🗺️ <b>Learning</b> — PyTorch roadmap tracker\n` +
+        `💻 <b>Python Lab</b> — Run code in sandbox\n` +
         `👤 <b>Profile</b> — Your account\n` +
         `ℹ️ <b>Status</b> — System health`,
       parse_mode: 'HTML',
@@ -15,8 +17,44 @@ class MenuBuilder {
           [{ text: '📖 Study Assistant', callback_data: 'menu_study' }],
           [{ text: '📅 Class Routine', callback_data: 'menu_routine' }],
           [{ text: '📝 Knowledge Vault', callback_data: 'menu_notes' }],
+          [
+            { text: '🗺️ Learning Roadmap', callback_data: 'menu_learn' },
+            { text: '💻 Python Lab', callback_data: 'menu_run' },
+          ],
           [{ text: '👤 My Profile', callback_data: 'menu_profile' }],
           [{ text: 'ℹ️ System Status', callback_data: 'menu_status' }],
+        ],
+      },
+    };
+  }
+
+  static learningMenu() {
+    return {
+      text: `🗺️ <b>Learning Roadmap</b>\n\nTrack your PyTorch learning progress:`,
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '📋 View Roadmap', callback_data: 'learn_view' }],
+          [{ text: '➕ Add Topic', callback_data: 'learn_add_prompt' }],
+          [{ text: '🔄 Update Status', callback_data: 'learn_status_prompt' }],
+          [{ text: '🔙 Back', callback_data: 'menu_back' }],
+        ],
+      },
+    };
+  }
+
+  static runMenu() {
+    return {
+      text:
+        `💻 <b>Python Lab</b>\n\n` +
+        `Run Python & PyTorch code in a secure sandbox.\n\n` +
+        `Send code using:\n` +
+        `<pre>/run\n\`\`\`python\nimport torch\nprint(torch.__version__)\n\`\`\`</pre>`,
+      parse_mode: 'HTML',
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: '▶️ Run Code', callback_data: 'run_prompt' }],
+          [{ text: '🔙 Back', callback_data: 'menu_back' }],
         ],
       },
     };
@@ -31,6 +69,7 @@ class MenuBuilder {
       reply_markup: {
         inline_keyboard: [
           [{ text: '❓ Ask AI', callback_data: 'study_ask' }],
+          [{ text: '🌐 Web Search', callback_data: 'study_search' }],
           [{ text: '📋 Assignments', callback_data: 'study_assign' }],
           [{ text: '🔙 Back', callback_data: 'menu_back' }],
         ],

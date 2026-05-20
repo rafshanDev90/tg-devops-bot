@@ -1,3 +1,5 @@
+import { AppError } from './errors.js';
+
 export function asyncHandler(fn) {
   return async (...args) => {
     try {
@@ -5,7 +7,7 @@ export function asyncHandler(fn) {
     } catch (error) {
       const err = error.isOperational
         ? error
-        : new (await import('./errors.js')).AppError(error.message || 'Internal server error', 500, {
+        : new AppError(error.message || 'Internal server error', 500, {
             originalError: error.name,
             stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
           });

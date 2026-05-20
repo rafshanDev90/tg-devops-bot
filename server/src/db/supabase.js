@@ -15,7 +15,7 @@ class SupabaseClient {
     if (this.initialized) return;
 
     const url = process.env.SUPABASE_API_URL;
-    const key = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_PUBLIC_URL;
+    const key = process.env.SUPABASE_SERVICE_KEY;
 
     if (!url || !key) {
       logger.warn('Supabase', 'SUPABASE_API_URL or SUPABASE_SERVICE_KEY not set. Supabase features disabled.');

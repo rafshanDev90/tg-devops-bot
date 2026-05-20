@@ -38,6 +38,12 @@ const studentSchema = new mongoose.Schema({
     dailyReminderEnabled: { type: Boolean, default: true },
     dailyReminderTime: { type: String, default: '06:00' },
     notificationsEnabled: { type: Boolean, default: true }
+  },
+
+  runQuota: {
+    limit: { type: Number, default: 0 },       // 0 = no access; admin sets this
+    used: { type: Number, default: 0 },
+    resetAt: { type: Date, default: () => new Date() }
   }
 }, { 
   timestamps: true

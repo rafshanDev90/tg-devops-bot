@@ -6,6 +6,8 @@ import { AIService } from '../services/aiServices.js';
 import { StudentService } from '../services/studentService.js';
 import { asyncHandler } from '../utils/asyncHandler.js';
 import { SupabaseError } from '../utils/errors.js';
+import { escapeHtml } from '../utils/html.js';
+import { getCurrentDayBDT, getNextClassInfo, timeAgo, timeAgoShort } from '../utils/time.js';
 import { logger } from '../utils/logger.js';
 import { requireAdmin } from '../middleware/admin.js';
 import { MenuBuilder } from './menuBuilder.js';
@@ -329,6 +331,35 @@ export async function handleStudyAssign(ctx) {
   return handleAssignments(ctx);
 }
 
+// /search <query> — explicit web search, always hits Tavily regardless of topic
+export async function handleSearch(ctx, args) {
+  const query = args.join(' ').trim();
+  if (!query) {
+    return ctx.reply(
+      '🔍 <b>Web Search</b>\n\nUsage: <code>/search your query</code>\n\nExample: <code>/search PyTorch CUDA setup</code>',
+      { parse_mode: 'HTML' }
+    );
+  }
+
+  const student = await getOrCreateStudent(ctx);
+  if (!student) return ctx.reply('⚠️ Use /setup_profile first.');
+
+  const thinking = await ctx.reply('🔍 Searching the web…');
+
+  try {
+    const answer = await studyAgent.answerQuestion(query, student._id, true);
+    await ctx.telegram.deleteMessage(ctx.chat.id, thinking.message_id).catch(() => {});
+    return ctx.reply(
+      `🔍 <b>Search: ${escapeHtml(query)}</b>\n\n${answer}`,
+      { parse_mode: 'HTML' }
+    );
+  } catch (err) {
+    logger.error('Search', 'Failed', { error: err.message });
+    await ctx.telegram.deleteMessage(ctx.chat.id, thinking.message_id).catch(() => {});
+    return ctx.reply('❌ Search failed. Please try again.');
+  }
+}
+
 export async function handleRoutineMenu(ctx) {
   ctx.reply(MenuBuilder.routineMenu().text, {
     parse_mode: 'HTML',
@@ -406,37 +437,27 @@ export async function handleAdminMenu(ctx) {
 }
 
 export async function handleAdminUsers(ctx, args) {
-  await requireAdmin(ctx, async () => {
-    ctx.message.text = `/admin_users ${args.join(' ')}`;
-    return _handleAdminUsers(ctx, () => {});
-  });
+  ctx.message.text = `/admin_users ${args.join(' ')}`;
+  return _handleAdminUsers(ctx, () => {});
 }
 
 export async function handleAdminBroadcast(ctx, args) {
-  await requireAdmin(ctx, async () => {
-    ctx.message.text = `/admin_broadcast ${args.join(' ')}`;
-    return _handleAdminBroadcast(ctx, () => {});
-  });
+  ctx.message.text = `/admin_broadcast ${args.join(' ')}`;
+  return _handleAdminBroadcast(ctx, () => {});
 }
 
 export async function handleAdminStats(ctx) {
-  await requireAdmin(ctx, async () => {
-    return _handleAdminStats(ctx, () => {});
-  });
+  return _handleAdminStats(ctx, () => {});
 }
 
 export async function handleAdminSuspend(ctx, args) {
-  await requireAdmin(ctx, async () => {
-    ctx.message.text = `/admin_suspend ${args.join(' ')}`;
-    return _handleAdminSuspend(ctx, () => {});
-  });
+  ctx.message.text = `/admin_suspend ${args.join(' ')}`;
+  return _handleAdminSuspend(ctx, () => {});
 }
 
 export async function handleAdminActivate(ctx, args) {
-  await requireAdmin(ctx, async () => {
-    ctx.message.text = `/admin_activate ${args.join(' ')}`;
-    return _handleAdminActivate(ctx, () => {});
-  });
+  ctx.message.text = `/admin_activate ${args.join(' ')}`;
+  return _handleAdminActivate(ctx, () => {});
 }
 
 export async function handleAdminPromote(ctx, args) {
@@ -863,55 +884,4 @@ export const handleMakeAdmin = asyncHandler(async (ctx, next) => {
   });
 });
 
-function escapeHtml(text) {
-  if (!text) return '';
-  return String(text)
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
-}
 
-function timeAgo(date) {
-  const seconds = Math.floor((new Date() - date) / 1000);
-  if (seconds < 60) return 'Just now';
-  if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours ago`;
-  if (seconds < 604800) return `${Math.floor(seconds / 86400)} days ago`;
-  return date.toLocaleDateString();
-}
-
-function timeAgoShort(date) {
-  const seconds = Math.floor((new Date() - date) / 1000);
-  if (seconds < 60) return 'Just now';
-  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
-  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
-  if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
-  return date.toLocaleDateString();
-}
-
-function _getCurrentDayBDT() {
-  const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-  const now = new Date();
-  const bdtTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }));
-  return days[bdtTime.getDay()];
-}
-
-function _getNextClassInfo(classes) {
-  const now = new Date();
-  const bdtTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }));
-  const currentMinutes = bdtTime.getHours() * 60 + bdtTime.getMinutes();
-
-  for (const c of classes) {
-    const [h, m] = c.start_time.split(':').map(Number);
-    const classMinutes = h * 60 + m;
-    const diff = classMinutes - currentMinutes;
-    if (diff > 0) {
-      if (diff < 60) return `${diff} minutes`;
-      const hours = Math.floor(diff / 60);
-      const mins = diff % 60;
-      return mins > 0 ? `${hours}h ${mins}m` : `${hours} hours`;
-    }
-  }
-  return null;
-}

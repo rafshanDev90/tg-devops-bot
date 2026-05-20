@@ -3,6 +3,7 @@ import { cache } from '../utils/cache.js';
 import { SupabaseError, ValidationError } from '../utils/errors.js';
 import { logger } from '../utils/logger.js';
 import { safeExecute } from '../utils/asyncHandler.js';
+import { getCurrentDayBDT } from '../utils/time.js';
 
 const CACHE_TTL = 300;
 const CACHE_PREFIX = 'routine:';
@@ -63,11 +64,16 @@ export class RoutineService {
     const cached = cache.get(cacheKey);
     if (cached) return cached;
 
-    const dayName = this._getCurrentDayBDT();
+    const dayName = getCurrentDayBDT();
+
+    const filters = { telegram_id: telegramId, day_of_week: dayName };
+    if (university) filters.university = university;
+    if (department) filters.department = department;
+    if (batch) filters.batch = batch;
 
     const classes = await safeExecute(async () => {
       return supabase.query('routines', {
-        filters: { telegram_id: telegramId, day_of_week: dayName },
+        filters,
         order: { column: 'start_time', ascending: true },
       });
     }, []);
@@ -83,7 +89,7 @@ export class RoutineService {
     const cached = cache.get(cacheKey);
     if (cached) return cached;
 
-    const dayName = this._getCurrentDayBDT();
+    const dayName = getCurrentDayBDT();
 
     const classes = await safeExecute(async () => {
       return supabase.query('routines', {
@@ -187,10 +193,4 @@ export class RoutineService {
     }, []);
   }
 
-  _getCurrentDayBDT() {
-    const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-    const now = new Date();
-    const bdtTime = new Date(now.toLocaleString('en-US', { timeZone: 'Asia/Dhaka' }));
-    return days[bdtTime.getDay()];
-  }
 }
