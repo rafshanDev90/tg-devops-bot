@@ -478,19 +478,6 @@ export function handleHelp(ctx) {
     `/study ask &lt;q&gt; — Ask AI\n` +
     `/search &lt;q&gt; — Web search\n` +
     `/study assign — Assignments\n\n` +
-    `<b>📅 Routine:</b>\n` +
-    `/routine — Routine menu\n` +
-    `/routine today — Today's classes\n` +
-    `/routine week — Weekly view\n` +
-    `/routine upload — Upload routine\n` +
-    `/routine clear — Clear routine\n\n` +
-    `<b>📝 Notes:</b>\n` +
-    `/notes — Notes menu\n` +
-    `/notes add — Create note\n` +
-    `/notes list — List notes\n` +
-    `/notes search &lt;q&gt; — Search\n` +
-    `/notes tags — View tags\n` +
-    `/view_note &lt;id&gt; — View note\n\n` +
     `<b>🗺️ Learning:</b>\n` +
     `/learn — Dashboard\n` +
     `/learn_add &lt;title&gt; — Add topic\n` +
