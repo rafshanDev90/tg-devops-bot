@@ -106,12 +106,36 @@ export async function handleLearnView(ctx) {
       parse_mode: 'HTML',
       reply_markup: {
         inline_keyboard: [
+          [{ text: '📋 Pick Topic', callback_data: 'learn_pick_prompt' }],
           [{ text: '➕ Add Topic', callback_data: 'learn_add_prompt' }],
           [{ text: '🔙 Back', callback_data: 'menu_back' }],
         ],
       },
     }
   );
+}
+
+export async function handleLearnPickPrompt(ctx) {
+  await ctx.answerCbQuery();
+  const { data, total } = await listRoadmap.execute({ userId: ctx.from.id });
+  if (total === 0) {
+    return ctx.reply('🗺️ No topics yet. Add one first.', {
+      parse_mode: 'HTML',
+      reply_markup: { inline_keyboard: [[{ text: '🔙 Back', callback_data: 'learn_view' }]] },
+    });
+  }
+
+  const topicButtons = data.planned.concat(data['in-progress']).concat(data.completed).concat(data.skipped);
+  const rows = topicButtons.slice(0, 10).map(t => ([
+    { text: `${STATUS_EMOJI[t.status]} ${t.title}`, callback_data: `learn_pick_${t._id}` },
+  ]));
+
+  if (total > 10) rows.push([{ text: `🔍 Search (${total} topics)`, callback_data: 'learn_search_prompt' }]);
+
+  return ctx.reply('🗺️ <b>Select a Topic</b>\n\nTap a topic to view details:', {
+    parse_mode: 'HTML',
+    reply_markup: { inline_keyboard: [...rows, [{ text: '🔙 Back', callback_data: 'learn_view' }]] },
+  });
 }
 
 export async function handleLearnAdd(ctx, args) {
@@ -229,17 +253,26 @@ export async function handleLearnViewDetail(ctx, topicId) {
     `${PRIORITY_EMOJI[t.priority] || ''} ${capitalize(t.priority)} priority\n` +
     `${STATUS_EMOJI[t.status]} ${capitalize(t.status)}\n` +
     `${t.description ? `\n${escapeHtml(t.description)}\n` : ''}` +
-    `${schedText}${notesText}${codeText}${resourcesText}\n\n` +
+    `${schedText}${codeText}${resourcesText}\n\n` +
     `<i>Created: ${new Date(t.createdAt).toLocaleDateString()}</i>` +
     `${t.completedAt ? `\n✅ Completed: ${new Date(t.completedAt).toLocaleDateString()}` : ''}`;
 
   await ctx.answerCbQuery();
+
+  // Build note action rows
+  const noteRows = (t.notes || []).map(n => ([
+    { text: `📖 ${n.title}`, callback_data: `ln_view_${n._id}` },
+    { text: '✏️ Edit', callback_data: `edit_${n._id}` },
+  ]));
+
   return ctx.reply(text, {
     parse_mode: 'HTML',
     reply_markup: {
       inline_keyboard: [
+        ...(noteRows.length ? [[{ text: `📝 Notes (${noteRows.length})`, callback_data: 'noop' }]] : []),
+        ...noteRows,
         [
-          { text: '✏️ Edit', callback_data: `learn_edit_${topicId}` },
+          { text: '✏️ Edit Topic', callback_data: `learn_edit_${topicId}` },
           { text: '📅 Schedule', callback_data: `learn_schedule_${topicId}` },
         ],
         [

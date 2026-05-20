@@ -72,12 +72,16 @@ export async function handleMenuCallback(ctx) {
     const topicId = data.replace('learn_schedule_', '');
     multiLineSessionManager.start(ctx.from.id, 'learn_schedule', 'Schedule Topic', 'Schedule');
     multiLineSessionManager.get(ctx.from.id).data = { topicId };
-    return safeEdit(ctx,
+    return ctx.editMessageText(
       '📅 <b>Schedule Topic</b>\n\nType date and time (e.g. 2026-05-25 14:00).\n\nPress ✅ Schedule when ready.',
       { parse_mode: 'HTML', reply_markup: multiLineKeyboard('Schedule') }
     );
   }
-  if (data.startsWith('learn_pick_')) {
+  if (data.startsWith('ln_view_')) {
+    const noteId = data.replace('ln_view_', '');
+    return handleLearnNoteView(ctx, noteId);
+  }
+  if (data.startsWith('learn_pick_') && data !== 'learn_pick_prompt') {
     const topicId = data.replace('learn_pick_', '');
     const { handleLearnViewDetail } = await import('../learning/handlers/learningCommands.js');
     return handleLearnViewDetail(ctx, topicId);
@@ -285,6 +289,12 @@ export async function handleMenuCallback(ctx) {
       return handleLearnStats(ctx);
     }
 
+    case 'learn_pick_prompt':
+      return ctx.answerCbQuery().then(async () => {
+        const { handleLearnPickPrompt } = await import('../learning/handlers/learningCommands.js');
+        return handleLearnPickPrompt(ctx);
+      });
+
     case 'learn_search_prompt':
       multiLineSessionManager.start(ctx.from.id, 'learn_search', 'Search Topics', 'Search');
       return safeEdit(ctx,
@@ -389,7 +399,10 @@ export async function handleMenuCallback(ctx) {
           const { handleLearnSchedule } = await import('../learning/handlers/learningCommands.js');
           return handleLearnSchedule(ctx, [session.data.topicId, ...session.text.split(' ')]);
         }
-        default:
+    case 'noop':
+      return ctx.answerCbQuery();
+
+    default:
           return ctx.reply('⚠️ Unknown session type.');
       }
     }
@@ -428,6 +441,40 @@ async function handleProfileMenu(ctx) {
     parse_mode: 'HTML',
     reply_markup: MenuBuilder.profileMenu(student).reply_markup,
   });
+}
+
+async function handleLearnNoteView(ctx, noteId) {
+  await ctx.answerCbQuery();
+  const { ViewNoteUseCase } = await import('../notes/useCases/index.js');
+  const viewNote = new ViewNoteUseCase();
+  const result = await viewNote.execute({ userId: ctx.from.id, noteId });
+  if (!result.success) return ctx.reply(`❌ ${result.error}`);
+
+  const note = result.data;
+  const CATEGORY_LABELS = { general: '📄 General', learning: '🗺️ Learning', academic: '📚 Academic', project: '💻 Project' };
+  const categoryLabel = CATEGORY_LABELS[note.category] || note.category;
+  const tagsText = note.tags?.length ? `\n🏷️ Tags: ${note.tags.join(', ')}` : '';
+  const contentText = note.isEncrypted && note.content === '🔒 Encrypted — tap Reveal to view'
+    ? '🔒 This note is encrypted.'
+    : note.content;
+
+  const keyboard = note.isEncrypted && note.content === '🔒 Encrypted — tap Reveal to view'
+    ? { inline_keyboard: [[{ text: '🔓 Reveal', callback_data: `reveal_${noteId}` }]] }
+    : {
+        inline_keyboard: [
+          [{ text: '✏️ Edit', callback_data: `edit_${noteId}` }, { text: '🗑️ Delete', callback_data: `confirm_delete_${noteId}` }],
+          [{ text: '🔙 Back', callback_data: `noop` }],
+        ],
+      };
+
+  return ctx.reply(
+    `📝 <b>${escapeHtml(note.title)}</b>\n` +
+    `${categoryLabel}\n` +
+    `──────────────────\n` +
+    `<pre>${escapeHtml(contentText)}</pre>\n` +
+    `${tagsText}\n👁️ Views: ${note.viewCount || 0}`,
+    { parse_mode: 'HTML', reply_markup: keyboard }
+  );
 }
 
 async function handleStatusAction(ctx) {

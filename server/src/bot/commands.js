@@ -154,7 +154,8 @@ export function registerCommands(bot) {
       const data = ctx.callbackQuery.data;
       if (data.startsWith('menu_') || data.startsWith('study_') || data.startsWith('routine_') ||
           data.startsWith('profile_') || data.startsWith('notes_') || data.startsWith('admin_') ||
-          data.startsWith('learn_') || data.startsWith('run_') || data.startsWith('session_')) {
+          data.startsWith('learn_') || data.startsWith('run_') || data.startsWith('session_') ||
+          data.startsWith('ln_view_') || data === 'noop') {
         return await handleMenuCallback(ctx);
       }
       if (data.startsWith('uni_')) return await handleUniversityCallback(ctx);
