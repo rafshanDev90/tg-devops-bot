@@ -497,11 +497,13 @@ export function handleHelp(ctx) {
 }
 
 export async function handleError(err, ctx) {
-  console.error('Bot error:', err);
-  const message = err.statusCode >= 500
-    ? '⚠️ Something went wrong. Please try again in a moment.'
-    : err.message || 'An unexpected error occurred. Please try again.';
-  ctx.reply(message).catch(() => {});
+  logger.error('Bot', 'Unhandled error', { error: err.message, code: err.response?.error_code });
+  if (!ctx) return;
+  const isUserError = err.response?.error_code === 400 || err.response?.error_code === 403;
+  const message = isUserError
+    ? err.message || 'An unexpected error occurred. Please try again.'
+    : '⚠️ Something went wrong. Please try again in a moment.';
+  try { await ctx.reply(message, { parse_mode: 'HTML' }); } catch { /* ignore reply errors */ }
 }
 
 export const handleProfile = asyncHandler(async (ctx) => {
@@ -705,7 +707,8 @@ export const _handleAdminUsers = asyncHandler(async (ctx, next) => {
 
     let query = {};
     if (args) {
-      const searchRegex = new RegExp(args, 'i');
+      const escaped = args.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const searchRegex = new RegExp(escaped, 'i');
       query = {
         $or: [
           { name: searchRegex },

@@ -4,6 +4,7 @@ import { requireAdmin } from '../middleware/admin.js';
 import { logger } from '../utils/logger.js';
 import { escapeHtml } from '../utils/html.js';
 import { codeSessionManager } from './codeSessionManager.js';
+import { safeEdit } from '../utils/safeEdit.js';
 
 const DAILY_QUOTA_RESET_HOURS = 24;
 
@@ -78,7 +79,8 @@ export async function handleRunExecute(ctx) {
   const { allowed, reason, student } = await checkAccess(telegramId);
   if (!allowed) {
     codeSessionManager.end(telegramId);
-    return ctx.editMessageText(reason);
+    await ctx.answerCbQuery('⛔ Access denied');
+    return safeEdit(ctx, reason);
   }
 
   await ctx.answerCbQuery('⚙️ Running…');
@@ -96,7 +98,7 @@ export async function handleRunExecute(ctx) {
   const header = result.error ? '⚠️ <b>Output (with errors)</b>' : '✅ <b>Output</b>';
 
   if (result.truncated) {
-    await ctx.editMessageText(
+    await safeEdit(ctx,
       `${header}\n\n<pre>${escapeHtml(result.shortOutput)}</pre>\n\n<i>Output truncated. Full output attached.</i>`,
       { parse_mode: 'HTML' }
     );
@@ -106,7 +108,7 @@ export async function handleRunExecute(ctx) {
     );
   }
 
-  return ctx.editMessageText(
+  return safeEdit(ctx,
     `${header}\n\n<pre>${escapeHtml(result.shortOutput)}</pre>`,
     { parse_mode: 'HTML' }
   );
@@ -116,7 +118,7 @@ export async function handleRunClear(ctx) {
   const telegramId = ctx.from.id;
   codeSessionManager.clear(telegramId);
   await ctx.answerCbQuery('🗑 Code cleared');
-  return ctx.editMessageText(
+  return safeEdit(ctx,
     `💻 <b>Python Lab</b>\n\n<i>Type your Python code below. Each message is appended.</i>\n\n<b>Actions:</b>\n• Type code line by line\n• Press ▶ Execute to run\n• Press 🗑 Clear to reset\n• Press ❌ Cancel to exit`,
     { parse_mode: 'HTML', reply_markup: codeKeyboard() }
   );
@@ -126,7 +128,7 @@ export async function handleRunCancel(ctx) {
   const telegramId = ctx.from.id;
   codeSessionManager.end(telegramId);
   await ctx.answerCbQuery('❌ Session cancelled');
-  return ctx.editMessageText('❌ Python Lab session cancelled.');
+  return safeEdit(ctx,'❌ Python Lab session cancelled.');
 }
 
 export async function handleRunStatus(ctx) {

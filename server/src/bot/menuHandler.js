@@ -5,6 +5,7 @@ import { logger } from '../utils/logger.js';
 import { botSessionManager } from './botSessionManager.js';
 import { multiLineSessionManager } from './multiLineSessionManager.js';
 import { escapeHtml } from '../utils/html.js';
+import { safeEdit } from '../utils/safeEdit.js';
 
 export function multiLineKeyboard(submitLabel = 'Submit', clearLabel = 'Clear') {
   return {
@@ -53,7 +54,7 @@ export async function handleMenuCallback(ctx) {
     const topicId = data.replace('learn_code_', '');
     multiLineSessionManager.start(ctx.from.id, 'learn_code', 'Add Code Snippet', 'Add Code');
     multiLineSessionManager.get(ctx.from.id).data = { topicId };
-    return ctx.editMessageText(
+    return safeEdit(ctx,
       '💻 <b>Add Code Snippet</b>\n\nType your code. Each message is appended.\n\nPress ✅ Add Code when ready.',
       { parse_mode: 'HTML', reply_markup: multiLineKeyboard('Add Code') }
     );
@@ -62,7 +63,7 @@ export async function handleMenuCallback(ctx) {
     const topicId = data.replace('learn_note_', '');
     multiLineSessionManager.start(ctx.from.id, 'learn_note', 'Add Note', 'Add Note');
     multiLineSessionManager.get(ctx.from.id).data = { topicId };
-    return ctx.editMessageText(
+    return safeEdit(ctx,
       '📝 <b>Add Note</b>\n\nType your note. First line = title, rest = content.\n\nPress ✅ Add Note when ready.',
       { parse_mode: 'HTML', reply_markup: multiLineKeyboard('Add Note') }
     );
@@ -71,7 +72,7 @@ export async function handleMenuCallback(ctx) {
     const topicId = data.replace('learn_schedule_', '');
     multiLineSessionManager.start(ctx.from.id, 'learn_schedule', 'Schedule Topic', 'Schedule');
     multiLineSessionManager.get(ctx.from.id).data = { topicId };
-    return ctx.editMessageText(
+    return safeEdit(ctx,
       '📅 <b>Schedule Topic</b>\n\nType date and time (e.g. 2026-05-25 14:00).\n\nPress ✅ Schedule when ready.',
       { parse_mode: 'HTML', reply_markup: multiLineKeyboard('Schedule') }
     );
@@ -84,13 +85,13 @@ export async function handleMenuCallback(ctx) {
 
   switch (data) {
     case 'menu_back':
-      return ctx.editMessageText(MenuBuilder.mainMenu().text, {
+      return safeEdit(ctx,MenuBuilder.mainMenu().text, {
         parse_mode: 'HTML',
         reply_markup: MenuBuilder.mainMenu().reply_markup,
       }).then(() => ctx.answerCbQuery());
 
     case 'menu_study':
-      return ctx.editMessageText(MenuBuilder.studyMenu().text, {
+      return safeEdit(ctx,MenuBuilder.studyMenu().text, {
         parse_mode: 'HTML',
         reply_markup: MenuBuilder.studyMenu().reply_markup,
       }).then(() => ctx.answerCbQuery());
@@ -115,14 +116,14 @@ export async function handleMenuCallback(ctx) {
 
     case 'study_ask':
       multiLineSessionManager.start(ctx.from.id, 'study_ask', 'Ask AI', 'Send');
-      return ctx.editMessageText(
+      return safeEdit(ctx,
         '💬 <b>Ask AI</b>\n\nType your question. Each message is appended.\n\nPress ✅ Send when ready.',
         { parse_mode: 'HTML', reply_markup: multiLineKeyboard('Send') }
       );
 
     case 'study_search':
       multiLineSessionManager.start(ctx.from.id, 'study_search', 'Web Search', 'Search');
-      return ctx.editMessageText(
+      return safeEdit(ctx,
         '🌐 <b>Web Search</b>\n\nType your query. Each message is appended.\n\nPress ✅ Search when ready.',
         { parse_mode: 'HTML', reply_markup: multiLineKeyboard('Search') }
       );
@@ -199,13 +200,13 @@ export async function handleMenuCallback(ctx) {
     //   return ctx.answerCbQuery('Creation cancelled.').then(async () => {
     //     const { noteSessionManager } = await import('../notes/managers/sessionManager.js');
     //     noteSessionManager.cancelSession(ctx.from.id);
-    //     return ctx.editMessageText('❌ Note creation cancelled.');
+    //     return safeEdit(ctx,'❌ Note creation cancelled.');
     //   });
 
     case 'profile_edit':
       await ctx.answerCbQuery();
       botSessionManager.start(ctx.from.id, 'profile_edit');
-      return ctx.editMessageText(
+      return safeEdit(ctx,
         '✏️ <b>Edit Profile</b>\n\nWhat would you like to update?\n\nType in this format:\n<code>field: value</code>\n\nFields: <code>name</code>, <code>university_id</code>',
         {
           parse_mode: 'HTML',
@@ -236,19 +237,19 @@ export async function handleMenuCallback(ctx) {
     case 'session_cancel':
       await ctx.answerCbQuery('Cancelled.');
       botSessionManager.end(ctx.from.id);
-      return ctx.editMessageText(MenuBuilder.mainMenu().text, {
+      return safeEdit(ctx,MenuBuilder.mainMenu().text, {
         parse_mode: 'HTML',
         reply_markup: MenuBuilder.mainMenu().reply_markup,
       });
 
     case 'menu_learn':
-      return ctx.editMessageText(MenuBuilder.learningMenu().text, {
+      return safeEdit(ctx,MenuBuilder.learningMenu().text, {
         parse_mode: 'HTML',
         reply_markup: MenuBuilder.learningMenu().reply_markup,
       }).then(() => ctx.answerCbQuery());
 
     case 'menu_run':
-      return ctx.editMessageText(MenuBuilder.runMenu().text, {
+      return safeEdit(ctx,MenuBuilder.runMenu().text, {
         parse_mode: 'HTML',
         reply_markup: MenuBuilder.runMenu().reply_markup,
       }).then(() => ctx.answerCbQuery());
@@ -265,14 +266,14 @@ export async function handleMenuCallback(ctx) {
       const listToday = new ListTodayTopicsUseCase();
       const result = await listToday.execute({ userId: ctx.from.id });
       if (!result.data.length) {
-        return ctx.editMessageText('📅 <b>Today\'s Plan</b>\n\nNo topics scheduled for today.', {
+        return safeEdit(ctx,'📅 <b>Today\'s Plan</b>\n\nNo topics scheduled for today.', {
           parse_mode: 'HTML',
           reply_markup: { inline_keyboard: [[{ text: '🔙 Back', callback_data: 'menu_learn' }]] },
         });
       }
       const STATUS_EMOJI = { planned: '📋', 'in-progress': '🔄', completed: '✅', skipped: '⏭️' };
       const lines = result.data.map(t => `  • ${STATUS_EMOJI[t.status]} ${escapeHtml(t.title)} — ${t.schedule.time || 'No time'}`).join('\n');
-      return ctx.editMessageText(`📅 <b>Today's Plan</b>\n\n${lines}`, {
+      return safeEdit(ctx,`📅 <b>Today's Plan</b>\n\n${lines}`, {
         parse_mode: 'HTML',
         reply_markup: { inline_keyboard: [[{ text: '🔙 Back', callback_data: 'menu_learn' }]] },
       });
@@ -286,14 +287,14 @@ export async function handleMenuCallback(ctx) {
 
     case 'learn_search_prompt':
       multiLineSessionManager.start(ctx.from.id, 'learn_search', 'Search Topics', 'Search');
-      return ctx.editMessageText(
+      return safeEdit(ctx,
         '🔍 <b>Search Topics</b>\n\nType keywords. Each message is appended.\n\nPress ✅ Search when ready.',
         { parse_mode: 'HTML', reply_markup: multiLineKeyboard('Search') }
       );
 
     case 'learn_add_prompt':
       multiLineSessionManager.start(ctx.from.id, 'learn_add', 'Add Topic', 'Add');
-      return ctx.editMessageText(
+      return safeEdit(ctx,
         '➕ <b>Add Topic</b>\n\nType the topic title. Each message is appended.\n\nPress ✅ Add when ready.',
         { parse_mode: 'HTML', reply_markup: multiLineKeyboard('Add') }
       );
@@ -399,7 +400,7 @@ export async function handleMenuCallback(ctx) {
       if (!session) return ctx.answerCbQuery('⚠️ No active session.');
       multiLineSessionManager.clear(telegramId);
       await ctx.answerCbQuery('🗑 Cleared');
-      return ctx.editMessageText(
+      return safeEdit(ctx,
         `📝 <b>${session.title}</b>\n\n<i>Type your input. Each message is appended.</i>\n\nPress ✅ ${session.submitLabel} when ready.`,
         { parse_mode: 'HTML', reply_markup: multiLineKeyboard(session.submitLabel) }
       );
@@ -409,7 +410,7 @@ export async function handleMenuCallback(ctx) {
       const telegramId = ctx.from.id;
       multiLineSessionManager.end(telegramId);
       await ctx.answerCbQuery('❌ Cancelled');
-      return ctx.editMessageText('❌ Session cancelled.');
+      return safeEdit(ctx,'❌ Session cancelled.');
     }
 
     default:

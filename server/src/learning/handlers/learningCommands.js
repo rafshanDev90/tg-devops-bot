@@ -12,6 +12,7 @@ import {
   GetTopicStatsUseCase,
 } from '../useCases/index.js';
 import { botSessionManager } from '../../bot/botSessionManager.js';
+import { safeEdit } from '../../utils/safeEdit.js';
 
 const createTopic = new CreateTopicUseCase();
 const updateTopic = new UpdateTopicUseCase();
@@ -260,7 +261,7 @@ export async function handleLearnStatusPicker(ctx, topicId) {
 
   const t = result.data;
   await ctx.answerCbQuery();
-  return ctx.editMessageText(
+  return safeEdit(ctx,
     `📌 <b>${escapeHtml(t.title)}</b>\nCurrent: ${STATUS_EMOJI[t.status]} ${capitalize(t.status)}\n\nSet new status:`,
     {
       parse_mode: 'HTML',
@@ -282,7 +283,7 @@ export async function handleLearnSetStatus(ctx, topicId, status) {
   if (!result.success) return ctx.answerCbQuery(`❌ ${result.error}`);
 
   await ctx.answerCbQuery(`${STATUS_EMOJI[status]} Updated!`);
-  return ctx.editMessageText(
+  return safeEdit(ctx,
     `${STATUS_EMOJI[status]} <b>${escapeHtml(result.data.title)}</b> → <b>${capitalize(status)}</b>`,
     {
       parse_mode: 'HTML',
@@ -309,7 +310,7 @@ export async function handleLearnEditStart(ctx, topicId) {
 
 export async function handleLearnDeleteConfirm(ctx, topicId) {
   await ctx.answerCbQuery();
-  return ctx.editMessageText(
+  return safeEdit(ctx,
     `🗑️ <b>Delete this topic?</b>\n\nThis cannot be undone.`,
     {
       parse_mode: 'HTML',
@@ -328,7 +329,7 @@ export async function handleLearnDelete(ctx, topicId) {
   if (!result.success) return ctx.answerCbQuery(result.error);
 
   await ctx.answerCbQuery('🗑️ Deleted!');
-  return ctx.editMessageText(
+  return safeEdit(ctx,
     `✅ Topic deleted.`,
     {
       parse_mode: 'HTML',
@@ -371,7 +372,7 @@ export async function handleLearnNotePrompt(ctx, topicId) {
 export async function handleLearnSearchPrompt(ctx) {
   await ctx.answerCbQuery();
   botSessionManager.start(ctx.from.id, 'learn_search');
-  return ctx.editMessageText(
+  return safeEdit(ctx,
     '🔍 <b>Search Topics</b>\n\nType a keyword to search:',
     {
       parse_mode: 'HTML',

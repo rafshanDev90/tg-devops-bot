@@ -13,13 +13,13 @@ export async function requireAdmin(ctx, next) {
         logger.info('AdminMiddleware', 'Auto-promoted admin from env variable', { telegramId: ctx.from.id });
       }
       ctx.state.admin = student;
-      return next();
+      return await next();
     }
     logger.warn('AdminMiddleware', 'Unauthorized admin access attempt', { telegramId: ctx.from.id });
     return ctx.reply('🚫 You do not have permission to use this command.');
   }
   ctx.state.admin = student;
-  return next();
+  return await next();
 }
 
 export async function requireModeratorOrAdmin(ctx, next) {

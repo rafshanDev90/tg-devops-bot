@@ -53,6 +53,7 @@ import {
 import { handleMenuCallback, handleBotSession, multiLineKeyboard } from './menuHandler.js';
 import { botSessionManager } from './botSessionManager.js';
 import { multiLineSessionManager } from './multiLineSessionManager.js';
+import { safeEdit } from '../utils/safeEdit.js';
 import {
   handleNotesCommand,
   handleNoteViewCommand,
@@ -148,21 +149,25 @@ export function registerCommands(bot) {
   bot.command('run_grant', (ctx) => handleRunGrant(ctx, args(ctx, '/run_grant')));
 
   // Callbacks
-  bot.on('callback_query', (ctx) => {
-    const data = ctx.callbackQuery.data;
-    if (data.startsWith('menu_') || data.startsWith('study_') || data.startsWith('routine_') ||
-        data.startsWith('profile_') || data.startsWith('notes_') || data.startsWith('admin_') ||
-        data.startsWith('learn_') || data.startsWith('run_') || data.startsWith('session_')) {
-      return handleMenuCallback(ctx);
+  bot.on('callback_query', async (ctx) => {
+    try {
+      const data = ctx.callbackQuery.data;
+      if (data.startsWith('menu_') || data.startsWith('study_') || data.startsWith('routine_') ||
+          data.startsWith('profile_') || data.startsWith('notes_') || data.startsWith('admin_') ||
+          data.startsWith('learn_') || data.startsWith('run_') || data.startsWith('session_')) {
+        return await handleMenuCallback(ctx);
+      }
+      if (data.startsWith('uni_')) return await handleUniversityCallback(ctx);
+      if (data.startsWith('dept_')) return await handleDepartmentCallback(ctx);
+      if (data.startsWith('reveal_') || data.startsWith('copy_') || data.startsWith('edit_') ||
+          data.startsWith('confirm_delete_') || data.startsWith('delete_') || data.startsWith('cancel_delete_') ||
+          data.startsWith('cat_') || data.startsWith('encrypt_')) {
+        return await handleNoteCallback(ctx);
+      }
+      return ctx.answerCbQuery();
+    } catch (err) {
+      handleError(err, ctx);
     }
-    if (data.startsWith('uni_')) return handleUniversityCallback(ctx);
-    if (data.startsWith('dept_')) return handleDepartmentCallback(ctx);
-    if (data.startsWith('reveal_') || data.startsWith('copy_') || data.startsWith('edit_') ||
-        data.startsWith('confirm_delete_') || data.startsWith('delete_') || data.startsWith('cancel_delete_') ||
-        data.startsWith('cat_') || data.startsWith('encrypt_')) {
-      return handleNoteCallback(ctx);
-    }
-    return ctx.answerCbQuery();
   });
 
   // Text messages
@@ -184,11 +189,13 @@ export function registerCommands(bot) {
       if (mlSession) {
         multiLineSessionManager.append(ctx.from.id, ctx.message.text);
         const text = multiLineSessionManager.get(ctx.from.id).text;
-        return ctx.editMessageText(
+        await safeEdit(ctx,
           `📝 <b>${mlSession.title}</b>\n\n<pre>${escapeHtml(text)}</pre>\n\n<i>Lines: ${text.split('\n').length}</i>\n\nPress ✅ ${mlSession.submitLabel} when ready.`,
           { parse_mode: 'HTML', reply_markup: multiLineKeyboard(mlSession.submitLabel) }
         );
+        return;
       }
+
 
       const handled = await handleBotSession(ctx);
       if (handled) return;

@@ -18,6 +18,15 @@ import { supabase } from './src/db/supabase.js';
 import { executionService } from './src/services/executionService.js';
 import { logger } from './src/utils/logger.js';
 
+// Global error handlers prevent crashes on unhandled rejections
+process.on('unhandledRejection', (reason) => {
+  logger.error('Process', 'Unhandled rejection', { error: reason?.message || String(reason) });
+});
+process.on('uncaughtException', (err) => {
+  logger.error('Process', 'Uncaught exception', { error: err.message, stack: err.stack });
+  process.exit(1);
+});
+
 const { BOT_TOKEN, MONGODB_URI, GROQ_API_KEY, GEMINI_API_KEY } = process.env;
 const PORT = parseInt(process.env.PORT, 10) || 3000;
 
@@ -27,6 +36,9 @@ if (!BOT_TOKEN || !MONGODB_URI || !GROQ_API_KEY || !GEMINI_API_KEY) {
 }
 if (!process.env.E2B_API_KEY) logger.warn('Boot', 'E2B_API_KEY not set — /run disabled');
 if (!process.env.TAVILY_API_KEY) logger.warn('Boot', 'TAVILY_API_KEY not set — web search disabled');
+if (!process.env.NOTES_ENCRYPTION_KEY) logger.warn('Boot', 'NOTES_ENCRYPTION_KEY not set — notes encryption disabled');
+if (!process.env.SUPABASE_API_URL) logger.warn('Boot', 'SUPABASE_API_URL not set — Supabase features disabled');
+if (!process.env.SUPABASE_SERVICE_KEY) logger.warn('Boot', 'SUPABASE_SERVICE_KEY not set — Supabase features disabled');
 
 // ── Database ──────────────────────────────────────────────────────────────────
 mongoose.connect(MONGODB_URI, {
@@ -42,6 +54,7 @@ supabase.init();
 
 // ── Services ──────────────────────────────────────────────────────────────────
 const bot = new Telegraf(BOT_TOKEN);
+
 
 const aiService = new AIService();
 const routineAgent = new RoutineAgent(aiService);
@@ -88,7 +101,7 @@ server.listen(PORT, () => logger.info('HTTP', `Listening on port ${PORT}`));
 async function shutdown(signal) {
   logger.info('Bot', `Received ${signal}, shutting down…`);
   bot.stop(signal);
-  mongoose.disconnect();
+  await mongoose.disconnect();
   dailyJob.stop();
   onboardingManager.stop();
   noteSessionManager.stop();
@@ -96,7 +109,7 @@ async function shutdown(signal) {
   multiLineSessionManager.stop();
   codeSessionManager.stop();
   await executionService.killAll();
-  server.close();
+  await new Promise((resolve) => server.close(resolve));
   process.exit(0);
 }
 

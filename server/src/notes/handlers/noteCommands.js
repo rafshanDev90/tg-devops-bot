@@ -11,6 +11,7 @@ import { noteSessionManager, STEPS } from '../managers/sessionManager.js';
 import { CATEGORIES, CATEGORY_LABELS } from '../domain/noteEntity.js';
 import { requireNoteAccess } from '../middleware/noteAuth.js';
 import { logger } from '../../utils/logger.js';
+import { safeEdit } from '../../utils/safeEdit.js';
 
 const createNote = new CreateNoteUseCase();
 const listNotes = new ListNotesUseCase();
@@ -115,7 +116,7 @@ export async function handleNoteCallback(ctx) {
     return handleDeleteNote(ctx, data.replace('delete_', ''));
   }
   if (data.startsWith('cancel_delete_')) {
-    return ctx.editMessageText('✅ Delete cancelled.').then(() => ctx.answerCbQuery());
+    return safeEdit(ctx, '✅ Delete cancelled.').then(() => ctx.answerCbQuery());
   }
   if (data.startsWith('cat_')) {
     return handleCategorySelect(ctx, data.replace('cat_', ''));
@@ -261,7 +262,7 @@ async function handleEditNoteStart(ctx, noteId) {
 
 async function handleConfirmDelete(ctx, noteId) {
   await ctx.answerCbQuery();
-  ctx.editMessageText(
+  await safeEdit(ctx,
     `🗑️ <b>Delete Note?</b>\n\n` +
     `This action cannot be undone.`,
     {
