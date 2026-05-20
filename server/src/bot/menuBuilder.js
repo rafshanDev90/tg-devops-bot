@@ -4,10 +4,8 @@ class MenuBuilder {
       text:
         `📚 <b>AMUST Hub</b>\n\n` +
         `Welcome! Choose an option below:\n\n` +
-        `📖 <b>Study</b> — AI assistant & assignments\n` +
-        `📅 <b>Routine</b> — Class schedules\n` +
-        `📝 <b>Notes</b> — Personal knowledge vault\n` +
-        `🗺️ <b>Learning</b> — PyTorch roadmap tracker\n` +
+        `📖 <b>Study</b> — AI assistant & web search\n` +
+        `🗺️ <b>Learning</b> — Roadmap, schedule & notes\n` +
         `💻 <b>Python Lab</b> — Run code in sandbox\n` +
         `👤 <b>Profile</b> — Your account\n` +
         `ℹ️ <b>Status</b> — System health`,
@@ -15,12 +13,8 @@ class MenuBuilder {
       reply_markup: {
         inline_keyboard: [
           [{ text: '📖 Study Assistant', callback_data: 'menu_study' }],
-          [{ text: '📅 Class Routine', callback_data: 'menu_routine' }],
-          [{ text: '📝 Knowledge Vault', callback_data: 'menu_notes' }],
-          [
-            { text: '🗺️ Learning Roadmap', callback_data: 'menu_learn' },
-            { text: '💻 Python Lab', callback_data: 'menu_run' },
-          ],
+          [{ text: '🗺️ Learning Roadmap', callback_data: 'menu_learn' }],
+          [{ text: '💻 Python Lab', callback_data: 'menu_run' }],
           [{ text: '👤 My Profile', callback_data: 'menu_profile' }],
           [{ text: 'ℹ️ System Status', callback_data: 'menu_status' }],
         ],

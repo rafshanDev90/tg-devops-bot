@@ -476,6 +476,7 @@ export function handleHelp(ctx) {
     `<b>📖 Study:</b>\n` +
     `/study — Study menu\n` +
     `/study ask &lt;q&gt; — Ask AI\n` +
+    `/search &lt;q&gt; — Web search\n` +
     `/study assign — Assignments\n\n` +
     `<b>📅 Routine:</b>\n` +
     `/routine — Routine menu\n` +
@@ -490,6 +491,15 @@ export function handleHelp(ctx) {
     `/notes search &lt;q&gt; — Search\n` +
     `/notes tags — View tags\n` +
     `/view_note &lt;id&gt; — View note\n\n` +
+    `<b>🗺️ Learning:</b>\n` +
+    `/learn — Dashboard\n` +
+    `/learn_add &lt;title&gt; — Add topic\n` +
+    `/learn_schedule &lt;id&gt; &lt;date&gt; &lt;time&gt; — Schedule\n` +
+    `/learn_search &lt;q&gt; — Search topics\n` +
+    `/learn_stats — Statistics\n\n` +
+    `<b>💻 Python Lab:</b>\n` +
+    `/run &lt;code&gt; — Run Python code\n` +
+    `/run_grant &lt;id&gt; &lt;limit&gt; — Grant access (admin)\n\n` +
     `<b>👤 Profile:</b>\n` +
     `/profile — Profile menu\n` +
     `/profile edit — Edit info\n` +

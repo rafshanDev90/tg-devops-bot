@@ -69,17 +69,17 @@ export async function handleMenuCallback(ctx) {
         reply_markup: MenuBuilder.studyMenu().reply_markup,
       }).then(() => ctx.answerCbQuery());
 
-    case 'menu_routine':
-      return ctx.editMessageText(MenuBuilder.routineMenu().text, {
-        parse_mode: 'HTML',
-        reply_markup: MenuBuilder.routineMenu().reply_markup,
-      }).then(() => ctx.answerCbQuery());
+    // case 'menu_routine':
+    //   return ctx.editMessageText(MenuBuilder.routineMenu().text, {
+    //     parse_mode: 'HTML',
+    //     reply_markup: MenuBuilder.routineMenu().reply_markup,
+    //   }).then(() => ctx.answerCbQuery());
 
-    case 'menu_notes':
-      return ctx.editMessageText(MenuBuilder.notesMenu().text, {
-        parse_mode: 'HTML',
-        reply_markup: MenuBuilder.notesMenu().reply_markup,
-      }).then(() => ctx.answerCbQuery());
+    // case 'menu_notes':
+    //   return ctx.editMessageText(MenuBuilder.notesMenu().text, {
+    //     parse_mode: 'HTML',
+    //     reply_markup: MenuBuilder.notesMenu().reply_markup,
+    //   }).then(() => ctx.answerCbQuery());
 
     case 'menu_profile':
       return handleProfileMenu(ctx);
@@ -119,74 +119,74 @@ export async function handleMenuCallback(ctx) {
         return handleAssignments(ctx);
       });
 
-    case 'routine_today':
-      return ctx.answerCbQuery('Loading today\'s classes...').then(async () => {
-        const { handleToday } = await import('./handlers.js');
-        return handleToday(ctx);
-      });
+    // case 'routine_today':
+    //   return ctx.answerCbQuery('Loading today\'s classes...').then(async () => {
+    //     const { handleToday } = await import('./handlers.js');
+    //     return handleToday(ctx);
+    //   });
 
-    case 'routine_week':
-      return ctx.answerCbQuery('Loading weekly routine...').then(async () => {
-        const { handleRoutine } = await import('./handlers.js');
-        return handleRoutine(ctx);
-      });
+    // case 'routine_week':
+    //   return ctx.answerCbQuery('Loading weekly routine...').then(async () => {
+    //     const { handleRoutine } = await import('./handlers.js');
+    //     return handleRoutine(ctx);
+    //   });
 
-    case 'routine_upload':
-      await ctx.answerCbQuery();
-      botSessionManager.start(ctx.from.id, 'routine_upload');
-      return ctx.editMessageText(
-        '📤 <b>Upload Routine</b>\n\nSend your routine as:\n• 📷 A photo of your timetable\n• 📄 A <code>.txt</code> file\n• ✏️ Paste the text directly\n\nJust send it now:',
-        {
-          parse_mode: 'HTML',
-          reply_markup: {
-            inline_keyboard: [[{ text: '❌ Cancel', callback_data: 'session_cancel' }]],
-          },
-        }
-      );
+    // case 'routine_upload':
+    //   await ctx.answerCbQuery();
+    //   botSessionManager.start(ctx.from.id, 'routine_upload');
+    //   return ctx.editMessageText(
+    //     '📤 <b>Upload Routine</b>\n\nSend your routine as:\n• 📷 A photo of your timetable\n• 📄 A <code>.txt</code> file\n• ✏️ Paste the text directly\n\nJust send it now:',
+    //     {
+    //       parse_mode: 'HTML',
+    //       reply_markup: {
+    //         inline_keyboard: [[{ text: '❌ Cancel', callback_data: 'session_cancel' }]],
+    //       },
+    //     }
+    //   );
 
-    case 'routine_clear':
-      return ctx.answerCbQuery('Clearing routine...').then(async () => {
-        const { handleClearRoutine } = await import('./handlers.js');
-        return handleClearRoutine(ctx);
-      });
+    // case 'routine_clear':
+    //   return ctx.answerCbQuery('Clearing routine...').then(async () => {
+    //     const { handleClearRoutine } = await import('./handlers.js');
+    //     return handleClearRoutine(ctx);
+    //   });
 
-    case 'notes_add':
-      return ctx.answerCbQuery('Starting note creation...').then(async () => {
-        const { handleAddNote } = await import('../notes/handlers/noteCommands.js');
-        return handleAddNote(ctx);
-      });
+    // case 'notes_add':
+    //   return ctx.answerCbQuery('Starting note creation...').then(async () => {
+    //     const { handleAddNote } = await import('../notes/handlers/noteCommands.js');
+    //     return handleAddNote(ctx);
+    //   });
 
-    case 'notes_list':
-      return ctx.answerCbQuery('Loading notes...').then(async () => {
-        const { handleListNotes } = await import('../notes/handlers/noteCommands.js');
-        return handleListNotes(ctx);
-      });
+    // case 'notes_list':
+    //   return ctx.answerCbQuery('Loading notes...').then(async () => {
+    //     const { handleListNotes } = await import('../notes/handlers/noteCommands.js');
+    //     return handleListNotes(ctx);
+    //   });
 
-    case 'notes_search':
-      await ctx.answerCbQuery();
-      botSessionManager.start(ctx.from.id, 'notes_search');
-      return ctx.editMessageText(
-        '🔍 <b>Search Notes</b>\n\nType a keyword to search:',
-        {
-          parse_mode: 'HTML',
-          reply_markup: {
-            inline_keyboard: [[{ text: '❌ Cancel', callback_data: 'session_cancel' }]],
-          },
-        }
-      );
+    // case 'notes_search':
+    //   await ctx.answerCbQuery();
+    //   botSessionManager.start(ctx.from.id, 'notes_search');
+    //   return ctx.editMessageText(
+    //     '🔍 <b>Search Notes</b>\n\nType a keyword to search:',
+    //     {
+    //       parse_mode: 'HTML',
+    //       reply_markup: {
+    //         inline_keyboard: [[{ text: '❌ Cancel', callback_data: 'session_cancel' }]],
+    //       },
+    //     }
+    //   );
 
-    case 'notes_tags':
-      return ctx.answerCbQuery('Loading tags...').then(async () => {
-        const { handleListTags } = await import('../notes/handlers/noteCommands.js');
-        return handleListTags(ctx);
-      });
+    // case 'notes_tags':
+    //   return ctx.answerCbQuery('Loading tags...').then(async () => {
+    //     const { handleListTags } = await import('../notes/handlers/noteCommands.js');
+    //     return handleListTags(ctx);
+    //   });
 
-    case 'notes_cancel':
-      return ctx.answerCbQuery('Creation cancelled.').then(async () => {
-        const { noteSessionManager } = await import('../notes/managers/sessionManager.js');
-        noteSessionManager.cancelSession(ctx.from.id);
-        return ctx.editMessageText('❌ Note creation cancelled.');
-      });
+    // case 'notes_cancel':
+    //   return ctx.answerCbQuery('Creation cancelled.').then(async () => {
+    //     const { noteSessionManager } = await import('../notes/managers/sessionManager.js');
+    //     noteSessionManager.cancelSession(ctx.from.id);
+    //     return ctx.editMessageText('❌ Note creation cancelled.');
+    //   });
 
     case 'profile_edit':
       await ctx.answerCbQuery();

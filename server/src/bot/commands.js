@@ -90,25 +90,25 @@ export function registerCommands(bot) {
   bot.command('study_assign', handleStudyAssign);
   bot.command('search', aiLimit, (ctx) => handleSearch(ctx, args(ctx, '/search')));
 
-  // Routine
-  bot.command('routine', handleRoutineMenu);
-  bot.command('routine_today', handleRoutineToday);
-  bot.command('routine_week', handleRoutineWeek);
-  bot.command('routine_upload', handleRoutineUpload);
-  bot.command('routine_clear', handleRoutineClear);
+  // Routine (temporarily disabled)
+  // bot.command('routine', handleRoutineMenu);
+  // bot.command('routine_today', handleRoutineToday);
+  // bot.command('routine_week', handleRoutineWeek);
+  // bot.command('routine_upload', handleRoutineUpload);
+  // bot.command('routine_clear', handleRoutineClear);
 
   // Profile
   bot.command('profile', handleProfileMenu);
   bot.command('profile_edit', (ctx) => handleProfileEdit(ctx, args(ctx, '/profile_edit')));
   bot.command('profile_stats', handleProfileStats);
 
-  // Notes
-  bot.command('notes', handleNotesCommand);
-  bot.command('notes_add', handleNotesAdd);
-  bot.command('notes_list', (ctx) => handleNotesList(ctx, args(ctx, '/notes_list')));
-  bot.command('notes_search', (ctx) => handleNotesSearch(ctx, args(ctx, '/notes_search')));
-  bot.command('notes_tags', handleNotesTags);
-  bot.command('view_note', handleNoteViewCommand);
+  // Notes (temporarily disabled — use Learning module notes instead)
+  // bot.command('notes', handleNotesCommand);
+  // bot.command('notes_add', handleNotesAdd);
+  // bot.command('notes_list', (ctx) => handleNotesList(ctx, args(ctx, '/notes_list')));
+  // bot.command('notes_search', (ctx) => handleNotesSearch(ctx, args(ctx, '/notes_search')));
+  // bot.command('notes_tags', handleNotesTags);
+  // bot.command('view_note', handleNoteViewCommand);
 
   // Admin
   bot.command('admin', handleAdminMenu);

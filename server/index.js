@@ -59,12 +59,10 @@ bot.telegram.setMyCommands([
   { command: 'profile', description: 'Profile & settings' },
   { command: 'study',   description: 'Study assistant' },
   { command: 'search',  description: 'Web search with AI' },
-  { command: 'routine', description: 'Class schedule' },
-  { command: 'notes',   description: 'Knowledge vault' },
   { command: 'learn',   description: 'Learning roadmap' },
   { command: 'run',     description: 'Run Python code in sandbox' },
   { command: 'status',  description: 'System health' },
-]);
+]).catch((err) => logger.warn('Bot', 'setMyCommands failed (retrying on next launch)', { error: err.message }));
 
 bot.launch()
   .then(() => logger.info('Bot', 'Running'))
