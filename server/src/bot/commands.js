@@ -61,7 +61,9 @@ import { handleNoteCreationMessage } from '../notes/handlers/noteOnboarding.js';
 import {
   handleLearn,
   handleLearnAdd,
-  handleLearnStatus,
+  handleLearnSchedule,
+  handleLearnSearch,
+  handleLearnStats,
 } from '../learning/handlers/learningCommands.js';
 import { handleRun, handleRunGrant } from './runHandler.js';
 import { rateLimit } from '../middleware/rateLimit.js';
@@ -134,7 +136,9 @@ export function registerCommands(bot) {
   // Learning
   bot.command('learn', handleLearn);
   bot.command('learn_add', (ctx) => handleLearnAdd(ctx, args(ctx, '/learn_add')));
-  bot.command('learn_status', (ctx) => handleLearnStatus(ctx, args(ctx, '/learn_status')));
+  bot.command('learn_schedule', (ctx) => handleLearnSchedule(ctx, args(ctx, '/learn_schedule')));
+  bot.command('learn_search', (ctx) => handleLearnSearch(ctx, args(ctx, '/learn_search')));
+  bot.command('learn_stats', handleLearnStats);
 
   // Python Lab
   bot.command('run', runLimit, handleRun);

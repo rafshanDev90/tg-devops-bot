@@ -30,13 +30,14 @@ class MenuBuilder {
 
   static learningMenu() {
     return {
-      text: `🗺️ <b>Learning Roadmap</b>\n\nTrack your PyTorch learning progress:`,
+      text: `🗺️ <b>Learning Roadmap</b>\n\nTrack your learning progress, schedule topics, and link notes:`,
       parse_mode: 'HTML',
       reply_markup: {
         inline_keyboard: [
-          [{ text: '📋 View Roadmap', callback_data: 'learn_view' }],
+          [{ text: '📊 Dashboard', callback_data: 'learn_view' }],
           [{ text: '➕ Add Topic', callback_data: 'learn_add_prompt' }],
-          [{ text: '🔄 Update Status', callback_data: 'learn_status_prompt' }],
+          [{ text: '🔍 Search', callback_data: 'learn_search_prompt' }],
+          [{ text: '📅 Today\'s Plan', callback_data: 'learn_today' }],
           [{ text: '🔙 Back', callback_data: 'menu_back' }],
         ],
       },

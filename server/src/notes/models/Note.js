@@ -6,6 +6,12 @@ const noteSchema = new mongoose.Schema({
     required: true,
     index: true
   },
+  topicId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'LearningTopic',
+    sparse: true,
+    index: true
+  },
   title: {
     type: String,
     required: true,
@@ -20,7 +26,7 @@ const noteSchema = new mongoose.Schema({
   category: {
     type: String,
     required: true,
-    enum: ['credentials', 'requirements', 'meetings', 'snippets', 'servers', 'other'],
+    enum: ['credentials', 'requirements', 'meetings', 'snippets', 'servers', 'learning', 'other'],
     default: 'other'
   },
   tags: [{

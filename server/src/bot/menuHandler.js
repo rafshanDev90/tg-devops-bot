@@ -8,37 +8,52 @@ export async function handleMenuCallback(ctx) {
   const data = ctx.callbackQuery.data;
 
   // Dynamic learning callbacks
-  if (data.startsWith('learn_pick_')) {
-    const topicId = data.replace('learn_pick_', '');
-    const { handleLearnPickCallback } = await import('../learning/handlers/learningCommands.js');
-    return handleLearnPickCallback(ctx, topicId);
+  if (data.startsWith('learn_detail_')) {
+    const topicId = data.replace('learn_detail_', '');
+    const { handleLearnViewDetail } = await import('../learning/handlers/learningCommands.js');
+    return handleLearnViewDetail(ctx, topicId);
   }
   if (data.startsWith('learn_set_')) {
-    const match = data.match(/^learn_set_(.+?)_(planned|in-progress|completed)$/);
+    const match = data.match(/^learn_set_(.+?)_(planned|in-progress|completed|skipped)$/);
     if (match) {
-      const { handleLearnSetCallback } = await import('../learning/handlers/learningCommands.js');
-      return handleLearnSetCallback(ctx, match[1], match[2]);
+      const { handleLearnSetStatus } = await import('../learning/handlers/learningCommands.js');
+      return handleLearnSetStatus(ctx, match[1], match[2]);
     }
   }
   if (data.startsWith('learn_edit_')) {
     const topicId = data.replace('learn_edit_', '');
-    const { handleLearnEditCallback } = await import('../learning/handlers/learningCommands.js');
-    return handleLearnEditCallback(ctx, topicId);
+    const { handleLearnEditStart } = await import('../learning/handlers/learningCommands.js');
+    return handleLearnEditStart(ctx, topicId);
   }
   if (data.startsWith('learn_confirm_delete_')) {
     const topicId = data.replace('learn_confirm_delete_', '');
-    const { handleLearnDeleteCallback } = await import('../learning/handlers/learningCommands.js');
-    return handleLearnDeleteCallback(ctx, topicId);
-  }
-  if (data.startsWith('learn_delete_')) {
-    const topicId = data.replace('learn_delete_', '');
     const { handleLearnDeleteConfirm } = await import('../learning/handlers/learningCommands.js');
     return handleLearnDeleteConfirm(ctx, topicId);
   }
-  if (data.startsWith('learn_detail_')) {
-    const topicId = data.replace('learn_detail_', '');
-    const { handleLearnDetailCallback } = await import('../learning/handlers/learningCommands.js');
-    return handleLearnDetailCallback(ctx, topicId);
+  if (data.startsWith('learn_delete_')) {
+    const topicId = data.replace('learn_delete_', '');
+    const { handleLearnDelete } = await import('../learning/handlers/learningCommands.js');
+    return handleLearnDelete(ctx, topicId);
+  }
+  if (data.startsWith('learn_code_')) {
+    const topicId = data.replace('learn_code_', '');
+    const { handleLearnCodePrompt } = await import('../learning/handlers/learningCommands.js');
+    return handleLearnCodePrompt(ctx, topicId);
+  }
+  if (data.startsWith('learn_note_')) {
+    const topicId = data.replace('learn_note_', '');
+    const { handleLearnNotePrompt } = await import('../learning/handlers/learningCommands.js');
+    return handleLearnNotePrompt(ctx, topicId);
+  }
+  if (data.startsWith('learn_schedule_')) {
+    const topicId = data.replace('learn_schedule_', '');
+    const { handleLearnSchedulePrompt } = await import('../learning/handlers/learningCommands.js');
+    return handleLearnSchedulePrompt(ctx, topicId);
+  }
+  if (data.startsWith('learn_pick_')) {
+    const topicId = data.replace('learn_pick_', '');
+    const { handleLearnViewDetail } = await import('../learning/handlers/learningCommands.js');
+    return handleLearnViewDetail(ctx, topicId);
   }
 
   switch (data) {
@@ -226,9 +241,37 @@ export async function handleMenuCallback(ctx) {
 
     case 'learn_view': {
       await ctx.answerCbQuery();
-      const { handleLearn } = await import('../learning/handlers/learningCommands.js');
-      return handleLearn(ctx);
+      const { handleLearnView } = await import('../learning/handlers/learningCommands.js');
+      return handleLearnView(ctx);
     }
+
+    case 'learn_today': {
+      await ctx.answerCbQuery();
+      const { ListTodayTopicsUseCase } = await import('../learning/useCases/index.js');
+      const listToday = new ListTodayTopicsUseCase();
+      const result = await listToday.execute({ userId: ctx.from.id });
+      if (!result.data.length) {
+        return ctx.editMessageText('📅 <b>Today\'s Plan</b>\n\nNo topics scheduled for today.', {
+          parse_mode: 'HTML',
+          reply_markup: { inline_keyboard: [[{ text: '🔙 Back', callback_data: 'menu_learn' }]] },
+        });
+      }
+      const STATUS_EMOJI = { planned: '📋', 'in-progress': '🔄', completed: '✅', skipped: '⏭️' };
+      const lines = result.data.map(t => `  • ${STATUS_EMOJI[t.status]} ${escapeHtml(t.title)} — ${t.schedule.time || 'No time'}`).join('\n');
+      return ctx.editMessageText(`📅 <b>Today's Plan</b>\n\n${lines}`, {
+        parse_mode: 'HTML',
+        reply_markup: { inline_keyboard: [[{ text: '🔙 Back', callback_data: 'menu_learn' }]] },
+      });
+    }
+
+    case 'learn_stats': {
+      await ctx.answerCbQuery();
+      const { handleLearnStats } = await import('../learning/handlers/learningCommands.js');
+      return handleLearnStats(ctx);
+    }
+
+    case 'learn_search_prompt':
+      return (await import('../learning/handlers/learningCommands.js')).handleLearnSearchPrompt(ctx);
 
     case 'learn_add_prompt':
       await ctx.answerCbQuery();
@@ -243,8 +286,8 @@ export async function handleMenuCallback(ctx) {
 
     case 'learn_status_prompt': {
       await ctx.answerCbQuery();
-      const { handleLearnStatus } = await import('../learning/handlers/learningCommands.js');
-      return handleLearnStatus(ctx, []);
+      const { handleLearnView } = await import('../learning/handlers/learningCommands.js');
+      return handleLearnView(ctx);
     }
 
     case 'run_prompt':
@@ -388,12 +431,76 @@ export async function handleBotSession(ctx) {
     case 'learn_edit': {
       botSessionManager.end(telegramId);
       if (!text) return ctx.reply('⚠️ Please send a new title.');
-      const { EditTopicUseCase } = await import('../learning/useCases/index.js');
-      const edit = new EditTopicUseCase();
+      const { UpdateTopicUseCase } = await import('../learning/useCases/index.js');
+      const edit = new UpdateTopicUseCase();
       const result = await edit.execute({ userId: telegramId, topicId: session.data.topicId, updates: { title: text } });
       if (!result.success) return ctx.reply(`❌ ${result.error}`);
       await ctx.reply(`✅ Title updated to: <b>${escapeHtml(result.data.title)}</b>`, { parse_mode: 'HTML' });
       return true;
+    }
+
+    case 'learn_search': {
+      botSessionManager.end(telegramId);
+      if (!text) return ctx.reply('⚠️ Please send a search query.');
+      const { handleLearnSearch } = await import('../learning/handlers/learningCommands.js');
+      await handleLearnSearch(ctx, text.split(' '));
+      return true;
+    }
+
+    case 'learn_schedule': {
+      botSessionManager.end(telegramId);
+      if (!text) return ctx.reply('⚠️ Please send date and time.');
+      const { handleLearnSchedule } = await import('../learning/handlers/learningCommands.js');
+      await handleLearnSchedule(ctx, [session.data.topicId, ...text.split(' ')]);
+      return true;
+    }
+
+    case 'learn_code': {
+      botSessionManager.end(telegramId);
+      if (!text) return ctx.reply('⚠️ Please send your code.');
+      const { AddCodeSnippetUseCase } = await import('../learning/useCases/index.js');
+      const addSnippet = new AddCodeSnippetUseCase();
+      const codeMatch = text.match(/title:\s*(.+?)\n?```(\w+)?\n?([\s\S]*?)```/);
+      if (codeMatch) {
+        const result = await addSnippet.execute({
+          userId: telegramId,
+          topicId: session.data.topicId,
+          title: codeMatch[1].trim(),
+          code: codeMatch[3].trim(),
+          language: codeMatch[2] || 'python',
+        });
+        if (!result.success) return ctx.reply(`❌ ${result.error}`);
+        return ctx.reply(`✅ Code snippet "${escapeHtml(codeMatch[1].trim())}" added!`);
+      }
+      const result = await addSnippet.execute({
+        userId: telegramId,
+        topicId: session.data.topicId,
+        title: 'Snippet',
+        code: text,
+        language: 'python',
+      });
+      if (!result.success) return ctx.reply(`❌ ${result.error}`);
+      return ctx.reply('✅ Code snippet added!');
+    }
+
+    case 'learn_note': {
+      botSessionManager.end(telegramId);
+      if (!text) return ctx.reply('⚠️ Please send your note.');
+      const { CreateNoteUseCase, LinkNoteToTopicUseCase } = await import('../notes/useCases/index.js');
+      const createNote = new CreateNoteUseCase();
+      const link = new LinkNoteToTopicUseCase();
+      const parts = text.split('\n\n');
+      const noteTitle = parts[0] || 'Learning Note';
+      const noteContent = parts.slice(1).join('\n\n') || text;
+      const noteResult = await createNote.execute({
+        userId: telegramId,
+        title: noteTitle,
+        content: noteContent,
+        category: 'learning',
+      });
+      if (!noteResult.success) return ctx.reply(`❌ ${noteResult.error}`);
+      await link.execute({ userId: telegramId, topicId: session.data.topicId, noteId: noteResult.data._id });
+      return ctx.reply(`✅ Note linked to topic!`);
     }
 
     case 'run_code': {
